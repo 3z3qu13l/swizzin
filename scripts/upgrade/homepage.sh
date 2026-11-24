@@ -11,5 +11,6 @@ fi
 
 homepage_build
 homepage_glances
+homepage_vnstat
 homepage_services
 echo_success "Homepage upgraded"

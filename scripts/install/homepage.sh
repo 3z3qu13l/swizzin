@@ -48,6 +48,7 @@ SERVICE
 homepage_build
 # Glances feeds the system graphs, apt_install shows its own progress
 homepage_glances
+homepage_vnstat
 echo_progress_start "Configuring Homepage"
 homepage_services
 _systemd

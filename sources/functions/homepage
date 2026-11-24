@@ -226,9 +226,39 @@ EOF
     echo_warn "Glances did not start, the System graphs will show an error (see journalctl -u glances)"
 }
 
+# vnStat, a swizzin dependency, records the traffic. A timer writes its figures to a
+# file that nginx serves to Homepage, local only, since vnStat has no web API.
+homepage_vnstat_file="/var/lib/homepage-vnstat/vnstat.json"
+
+function homepage_vnstat() {
+    mkdir -p "${homepage_vnstat_file%/*}"
+    cat > /etc/systemd/system/homepage-vnstat.service << EOF
+[Unit]
+Description=Traffic figures from vnStat for Homepage
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'iface=\$(ip route show default | grep -m1 -oP "\\\\bdev \\\\K\\\\S+"); vnstat -i "\$iface" --json | jq -c ".interfaces[0].traffic | {today: (.day[-1] // {rx: 0, tx: 0} | {rx, tx}), month: (.month[-1] // {rx: 0, tx: 0} | {rx, tx}), total: (.total | {rx, tx})}" > ${homepage_vnstat_file}.tmp && mv -f ${homepage_vnstat_file}.tmp ${homepage_vnstat_file}'
+EOF
+    cat > /etc/systemd/system/homepage-vnstat.timer << EOF
+[Unit]
+Description=Refresh the vnStat figures for Homepage
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+EOF
+    systemctl daemon-reload
+    systemctl enable -q --now homepage-vnstat.timer
+    systemctl start homepage-vnstat.service
+}
+
 # CPU, memory and network graphs over the last 15 minutes (90 points, one every 10 s)
 function _homepage_system() {
-    local port iface metric name api minutes
+    local port iface metric name api minutes listen period
     port=$(grep -oP -- '-p \K[0-9]+' "$homepage_glances_conf" 2> /dev/null)
     [[ -n $port ]] || return 0
     api=$(_homepage_glances_api)
@@ -269,6 +299,31 @@ function _homepage_system() {
     echo "          refreshInterval: 60000"
     echo "          mappings:"
     echo "            - label: Uptime"
+    # under Network: today, this month and total traffic recorded by vnStat
+    [[ -f $homepage_vnstat_file ]] || return 0
+    listen=$(grep -oP 'listen \K[0-9]+' /etc/nginx/sites-enabled/homepage 2> /dev/null | head -1)
+    [[ -n $listen ]] || return 0
+    echo "    - Traffic:"
+    echo "        widget:"
+    echo "          type: customapi"
+    echo "          url: https://127.0.0.1:${listen}/vnstat.json"
+    echo "          refreshInterval: 300000"
+    echo "          display: list"
+    echo "          mappings:"
+    for period in today month total; do
+        case $period in
+            today) name=Today ;;
+            month) name="This month" ;;
+            *) name=Total ;;
+        esac
+        # one line per period: down, then up next to it
+        echo "            - field: ${period}.rx"
+        echo "              label: ${name} ↓↑"
+        echo "              format: bytes"
+        echo "              additionalField:"
+        echo "                field: ${period}.tx"
+        echo "                format: bytes"
+    done
 }
 
 # Rewrites services.yaml from the installed apps and the master password file.
@@ -300,6 +355,7 @@ layout:
   System:
     style: row
     columns: 3
+    useEqualHeights: true
   Downloads:
     style: row
     columns: 3

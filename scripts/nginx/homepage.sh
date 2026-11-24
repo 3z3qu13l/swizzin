@@ -37,6 +37,15 @@ server {
   auth_basic_user_file /etc/htpasswd.d/htpasswd.${master};
 
   # tiles link to the apps on the main site, whatever address the browser used
+  # vnStat figures for the Traffic cards, read by Homepage itself
+  location = /vnstat.json {
+    auth_basic off;
+    allow 127.0.0.1;
+    deny all;
+    default_type application/json;
+    alias /var/lib/homepage-vnstat/vnstat.json;
+  }
+
   location /swizzin/ {
     rewrite ^/swizzin(/.*)\$ https://\$host\$1 redirect;
   }

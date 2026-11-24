@@ -11,6 +11,9 @@ rm -f /etc/systemd/system/homepage.service
 rm -rf /opt/homepage "/home/${user}/.config/homepage"
 rm -f /etc/nginx/sites-enabled/homepage
 systemctl reload nginx
+systemctl disable -q --now homepage-vnstat.timer >> "$log" 2>&1
+rm -f /etc/systemd/system/homepage-vnstat.service /etc/systemd/system/homepage-vnstat.timer
+rm -rf "${homepage_vnstat_file%/*}"
 
 # Glances goes back to its own setup, and is only removed if swizzin installed it
 glances_owned=false
