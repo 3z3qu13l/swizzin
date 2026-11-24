@@ -463,9 +463,29 @@ function _chpasswd() {
     htpasswd -b /etc/htpasswd $user "$pass" >> $log 2>&1
     mkdir -p /etc/htpasswd.d/
     htpasswd -b -c /etc/htpasswd.d/htpasswd.${user} $user "$pass" >> $log 2>&1
-    for app in autobrr shinkro deluge lounge netronome organizr qbittorrent qui transmission; do
+    for app in autobrr shinkro deluge filebrowser lounge netronome organizr qbittorrent qui transmission; do
         if [[ -f /install/.${app}.lock ]]; then
             case $app in
+                filebrowser)
+                    # Only the master has File Browser. Other users may run this through sudo and own their
+                    # home, so nothing under it is trusted, and the CLI never runs as root.
+                    fbdb="/home/$master/.config/Filebrowser/filebrowser.db"
+                    if [[ $user == "$master" && -f $fbdb ]]; then
+                        fb=(runuser -u "$master" -- "/home/$master/bin/filebrowser")
+                        # the server locks its database
+                        fbactive=$(systemctl is-active filebrowser)
+                        systemctl stop filebrowser >> $log 2>&1
+                        "${fb[@]}" config set --minimumPasswordLength 1 -d "$fbdb" >> $log 2>&1
+                        # the account is missing when the install failed to create it
+                        if "${fb[@]}" users find "$user" -d "$fbdb" > /dev/null 2>&1; then
+                            fbout=$("${fb[@]}" users update "$user" --password="$pass" -d "$fbdb" 2>&1)
+                        else
+                            fbout=$("${fb[@]}" users add --perm.admin -d "$fbdb" -- "$user" "$pass" 2>&1)
+                        fi || echo_warn "File Browser refused the password: ${fbout##*$'\n'}"
+                        echo "$fbout" >> $log
+                        [[ $fbactive == active ]] && systemctl start filebrowser >> $log 2>&1
+                    fi
+                    ;;
                 autobrr)
                     echo -n "$pass" | /usr/bin/autobrrctl --config "/home/$user/.config/autobrr" change-password "$user"
                     ;;
