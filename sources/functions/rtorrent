@@ -105,23 +105,28 @@ function rtorrent_016_supported() {
 }
 
 # 0.16 renamed or removed some commands, the old names only work with rtorrent -D
-function rtorrent_installed_is_016() {
+function rtorrent_installed_atleast() {
     local version
     version=$(dpkg-query -W -f='${Version}' rtorrent 2> /dev/null)
-    dpkg --compare-versions "${version:-0}" ge 0.16
+    dpkg --compare-versions "${version:-0}" ge "$1"
 }
 
 function rtorrent_rc_convert() {
     local rc=$1
     [[ -f $rc ]] || return 0
-    if rtorrent_installed_is_016; then
-        sed -i -E -e 's/^(\s*)network\.port_range\.set/\1network.listen.port.range.set/' \
-            -e 's/^(\s*)network\.port_random\.set/\1network.listen.port.random.set/' \
-            -e 's/\bschedule2\b/schedule/g' -e 's/\bexecute2\b/execute/g' \
-            -e '/^\s*encoding\.add\b/d' "$rc"
+    # schedule and execute behave like schedule2 and execute2 on every version
+    sed -i -E 's/\b(schedule|execute)2(\s*=)/\1\2/g' "$rc"
+    if rtorrent_installed_atleast 0.16.18; then
+        sed -i -E -e 's/\bnetwork\.port_(range|random)\.set\b/network.listen.port.\1.set/g' \
+            -e 's/^(\s*)port_random\b/\1network.listen.port.random.set/' "$rc"
     else
-        sed -i -E -e 's/^(\s*)network\.listen\.port\.range\.set/\1network.port_range.set/' \
-            -e 's/^(\s*)network\.listen\.port\.random\.set/\1network.port_random.set/' "$rc"
+        sed -i -E 's/\bnetwork\.listen\.port\.(range|random)\.set\b/network.port_\1.set/g' "$rc"
+    fi
+    if rtorrent_installed_atleast 0.16; then
+        sed -i -E -e 's/\bschedule_remove2\b/schedule.remove/g' \
+            -e '/^\s*(encoding\.add|trackers\.use_udp\.set)\b/d' "$rc"
+    else
+        sed -i -E 's/\bschedule\.remove\b/schedule_remove2/g' "$rc"
     fi
 }
 
