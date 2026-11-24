@@ -117,10 +117,13 @@ function rtorrent_rc_convert() {
     # schedule and execute behave like schedule2 and execute2 on every version
     sed -i -E 's/\b(schedule|execute)2(\s*=)/\1\2/g' "$rc"
     if rtorrent_installed_atleast 0.16.18; then
+        # rtorrent itself maps the swizzin legacy encryption options to allow
         sed -i -E -e 's/\bnetwork\.port_(range|random)\.set\b/network.listen.port.\1.set/g' \
-            -e 's/^(\s*)port_random\b/\1network.listen.port.random.set/' "$rc"
+            -e 's/^(\s*)port_random\b/\1network.listen.port.random.set/' \
+            -e 's/^(\s*)encryption\s*=\s*allow_incoming,try_outgoing,enable_retry\s*$/\1protocol.encryption.set = allow/' "$rc"
     else
-        sed -i -E 's/\bnetwork\.listen\.port\.(range|random)\.set\b/network.port_\1.set/g' "$rc"
+        sed -i -E -e 's/\bnetwork\.listen\.port\.(range|random)\.set\b/network.port_\1.set/g' \
+            -e 's/^(\s*)protocol\.encryption\.set\s*=\s*allow\s*$/\1encryption = allow_incoming,try_outgoing,enable_retry/' "$rc"
     fi
     if rtorrent_installed_atleast 0.16; then
         sed -i -E -e 's/\bschedule_remove2\b/schedule.remove/g' \
