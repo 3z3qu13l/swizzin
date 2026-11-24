@@ -101,7 +101,7 @@ function qbittorrent_version_info() {
     if [[ ${QBITTORRENT_VERSION} == "latest" ]]; then
         case $(_os_codename) in
             *)
-                QBITTORRENT_VERSION=$(git ls-remote -t --refs https://github.com/qbittorrent/qBittorrent.git | awk '{sub("refs/tags/release-", ""); print $2 }' | grep -v -e "beta" -e "rc" | sort -Vr | head -n1)
+                QBITTORRENT_VERSION=$(git ls-remote -t --refs https://github.com/qbittorrent/qBittorrent.git | awk '{sub("refs/tags/release-", ""); print $2 }' | grep -v -e "beta" -e "rc" | grep -E '^(4|5\.[0-2])\.' | sort -Vr | head -n1)
                 #latestv44=$(echo "$releases" | grep -m1 -oP '4\.4\.\d?.?\d')
                 ;;
         esac
@@ -294,6 +294,8 @@ function qbittorrent_version_info() {
                 libtorrent_branch=RC_1_2
             fi
             libtorrent_minimum_version=1.2.20
+            # qBittorrent 5.2 requires libtorrent >= 2.0.10 on the 2.0 branch
+            if [[ $libtorrent_branch == RC_2_0 ]]; then libtorrent_minimum_version=2.0.10; fi
             stdcver="c++20"
             qt_minimum_version=6.6 # Support for Qt 6.5 was dropped with 5.2 (see https://github.com/qbittorrent/qBittorrent/pull/22599)
             qbt_use_qt6=ON
