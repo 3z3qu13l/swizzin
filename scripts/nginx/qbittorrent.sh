@@ -36,6 +36,8 @@ location /qbt {
 location /qbittorrent/ {
     proxy_pass              http://$remote_user.qbittorrent;
     proxy_http_version      1.1;
+    # qBittorrent 5.2+ accepts Basic auth: do not forward the dashboard's credentials to it
+    proxy_set_header        Authorization           "";
     proxy_set_header        X-Forwarded-Host        $http_host;
     http2_push_preload on; # Enable http2 push
     auth_basic "What's the password?";
