@@ -65,5 +65,10 @@ fi
 
 for u in "${users[@]}"; do
     if grep -q localhost /home/$u/.rtorrent.rc; then sed -i 's/localhost/127.0.0.1/g' /home/$u/.rtorrent.rc; fi
+    rtorrent_rc_convert /home/$u/.rtorrent.rc
     systemctl try-restart rtorrent@${u}
 done
+
+if rtorrent_installed_is_016; then
+    echo_warn "rTorrent 0.16 renamed some commands. swizzin converted its own settings in each .rtorrent.rc, check any line you added yourself if rTorrent does not start."
+fi
