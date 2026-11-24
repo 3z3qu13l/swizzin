@@ -17,6 +17,6 @@ PIN
         echo_warn "Ombi's apt repository cannot be verified on Debian trixie (its signing key uses SHA1). It is restricted to the ombi package only."
     else
         echo "deb [signed-by=/usr/share/keyrings/ombi-archive-keyring.gpg] https://apt.ombi.app/master jessie main" > /etc/apt/sources.list.d/ombi.list
-        curl -s https://apt.ombi.app/pub.key | gpg --dearmor > /usr/share/keyrings/ombi-archive-keyring.gpg 2>> ${log}
+        curl -fsSL https://apt.ombi.app/pub.key | gpg --dearmor > /usr/share/keyrings/ombi-archive-keyring.gpg 2>> ${log}
     fi
 }

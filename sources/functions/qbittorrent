@@ -105,6 +105,12 @@ function whiptail_qbittorrent() {
 function qbittorrent_version_info() {
     if [[ ${QBITTORRENT_VERSION} == "latest" ]]; then
         case $(_os_codename) in
+            buster)
+                QBITTORRENT_VERSION=$(git ls-remote -t --refs https://github.com/qbittorrent/qBittorrent.git | awk '{sub("refs/tags/release-", ""); print $2 }' | grep -v -e "beta" -e "rc" | grep -E '^4\.[1-4]\.' | sort -Vr | head -n1)
+                ;;
+            bullseye | focal | jammy)
+                QBITTORRENT_VERSION=$(git ls-remote -t --refs https://github.com/qbittorrent/qBittorrent.git | awk '{sub("refs/tags/release-", ""); print $2 }' | grep -v -e "beta" -e "rc" | grep -E '^4\.' | sort -Vr | head -n1)
+                ;;
             *)
                 QBITTORRENT_VERSION=$(git ls-remote -t --refs https://github.com/qbittorrent/qBittorrent.git | awk '{sub("refs/tags/release-", ""); print $2 }' | grep -v -e "beta" -e "rc" | grep -E '^(4|5\.[0-3])\.' | sort -Vr | head -n1)
                 #latestv44=$(echo "$releases" | grep -m1 -oP '4\.4\.\d?.?\d')
@@ -314,7 +320,7 @@ function qbittorrent_version_info() {
     esac
     # 5.x needs Boost >= 1.76 and OpenSSL >= 3.0.2: fail here rather than after the libtorrent build
     if [[ $QBITTORRENT_VERSION == 5.* ]] && [[ $(_os_codename) =~ ^(buster|bullseye|focal|jammy)$ ]]; then
-        echo_error "qBittorrent ${QBITTORRENT_VERSION} cannot be built on $(_os_codename): use 4.6 or older. Setup will not proceed."
+        echo_error "qBittorrent ${QBITTORRENT_VERSION} cannot be built on $(_os_codename): pick a version offered by the menu. Setup will not proceed."
         exit 1
     fi
 }
