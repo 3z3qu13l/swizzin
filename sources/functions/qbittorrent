@@ -14,6 +14,8 @@ function whiptail_qbittorrent() {
         latestv46=$(echo "$releases" | grep -m1 -oP '^4\.6\.\d?.?\d')
         latestv50=$(echo "$releases" | grep -m1 -oP '^5\.0\.\d?.?\d')
         latestv51=$(echo "$releases" | grep -m1 -oP '^5\.1\.\d?.?\d')
+        latestv52=$(echo "$releases" | grep -m1 -oP '^5\.2\.\d?.?\d')
+        latestv53=$(echo "$releases" | grep -m1 -oP '^5\.3\.\d?.?\d')
         #latestv=$(echo "$releases" | grep -m1 -oP '\d.\d?.?\d?.?\d')
         repov=$(get_candidate_version qbittorrent-nox)
         case ${codename} in
@@ -41,6 +43,8 @@ function whiptail_qbittorrent() {
                 function=$(
                     whiptail --title "Pick qbittorrent version" --menu "Choose a qBittorrent version:" --ok-button "Continue" --nocancel 12 50 6 \
                         "Repo" "${repov}" \
+                        "5.3" "(${latestv53})" \
+                        "5.2" "(${latestv52})" \
                         "5.1" "(${latestv51})" \
                         "5.0" "(${latestv50})" \
                         "4.6" "(${latestv46})" \
@@ -81,6 +85,12 @@ function whiptail_qbittorrent() {
             5.1)
                 export QBITTORRENT_VERSION=${latestv51}
                 ;;
+            5.2)
+                export QBITTORRENT_VERSION=${latestv52}
+                ;;
+            5.3)
+                export QBITTORRENT_VERSION=${latestv53}
+                ;;
             Repo)
                 export QBITTORRENT_VERSION=repo
                 ;;
@@ -95,8 +105,14 @@ function whiptail_qbittorrent() {
 function qbittorrent_version_info() {
     if [[ ${QBITTORRENT_VERSION} == "latest" ]]; then
         case $(_os_codename) in
+            buster)
+                QBITTORRENT_VERSION=$(git ls-remote -t --refs https://github.com/qbittorrent/qBittorrent.git | awk '{sub("refs/tags/release-", ""); print $2 }' | grep -v -e "beta" -e "rc" | grep -E '^4\.[1-4]\.' | sort -Vr | head -n1)
+                ;;
+            bullseye | focal | jammy)
+                QBITTORRENT_VERSION=$(git ls-remote -t --refs https://github.com/qbittorrent/qBittorrent.git | awk '{sub("refs/tags/release-", ""); print $2 }' | grep -v -e "beta" -e "rc" | grep -E '^4\.' | sort -Vr | head -n1)
+                ;;
             *)
-                QBITTORRENT_VERSION=$(git ls-remote -t --refs https://github.com/qbittorrent/qBittorrent.git | awk '{sub("refs/tags/release-", ""); print $2 }' | grep -v -e "beta" -e "rc" | sort -Vr | head -n1)
+                QBITTORRENT_VERSION=$(git ls-remote -t --refs https://github.com/qbittorrent/qBittorrent.git | awk '{sub("refs/tags/release-", ""); print $2 }' | grep -v -e "beta" -e "rc" | grep -E '^(4|5\.[0-3])\.' | sort -Vr | head -n1)
                 #latestv44=$(echo "$releases" | grep -m1 -oP '4\.4\.\d?.?\d')
                 ;;
         esac
@@ -270,11 +286,43 @@ function qbittorrent_version_info() {
             cryptography_type=openssl
             build_type=cmake
             ;;
+        5.2.* | 5.3.*)
+            if [[ -n ${LIBTORRENT_VERSION} ]]; then
+                case $LIBTORRENT_VERSION in
+                    RC_2_0)
+                        libtorrent_branch=RC_2_0
+                        ;;
+                    RC_1_2)
+                        libtorrent_branch=RC_1_2
+                        ;;
+                    *)
+                        echo_error "LIBTORRENT_VERSION must be either RC_1_2 or RC_2_0. You entered ${LIBTORRENT_VERSION}."
+                        exit 1
+                        ;;
+                esac
+                echo_info "Overriding libtorrent version with ${LIBTORRENT_VERSION}"
+            else
+                libtorrent_branch=RC_1_2
+            fi
+            libtorrent_minimum_version=1.2.20
+            # qBittorrent 5.2/5.3 require libtorrent >= 2.0.10 on the 2.0 branch
+            if [[ $libtorrent_branch == RC_2_0 ]]; then libtorrent_minimum_version=2.0.10; fi
+            stdcver="c++20"
+            qt_minimum_version=6.6 # Support for Qt 6.5 was dropped with 5.2 (see https://github.com/qbittorrent/qBittorrent/pull/22599)
+            qbt_use_qt6=ON
+            cryptography_type=openssl
+            build_type=cmake
+            ;;
         *)
-            echo_error "qBittorrent version should be between 4.1.*(.*) and 5.1.*(.*) -- Setup will not proceed."
+            echo_error "qBittorrent version should be between 4.1.*(.*) and 5.3.*(.*) -- Setup will not proceed."
             exit 1
             ;;
     esac
+    # 5.x needs Boost >= 1.76 and OpenSSL >= 3.0.2: fail here rather than after the libtorrent build
+    if [[ $QBITTORRENT_VERSION == 5.* ]] && [[ $(_os_codename) =~ ^(buster|bullseye|focal|jammy)$ ]]; then
+        echo_error "qBittorrent ${QBITTORRENT_VERSION} cannot be built on $(_os_codename): pick a version offered by the menu. Setup will not proceed."
+        exit 1
+    fi
 }
 
 function skip_libtorrent_qbittorrent() {

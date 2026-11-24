@@ -81,8 +81,9 @@ if [[ -f /install/.sickchill.lock ]]; then
             mv /home/${user}/.sickchill /opt/sickchill
         fi
         sudo -u ${user} bash -c "cd /opt/sickchill; git pull" >> $log 2>&1
-        # echo "Installing requirements.txt with pip ..."
-        sudo -u ${user} bash -c "/opt/.venv/sickchill/bin/pip3 install -r /opt/sickchill/requirements.txt" >> $log 2>&1
+        sudo -u ${user} bash -c "/opt/.venv/sickchill/bin/pip3 install 'setuptools<71'" >> $log 2>&1
+        sudo -u ${user} bash -c "/opt/.venv/sickchill/bin/pip3 install 'stevedore<5.2'" >> $log 2>&1
+        sudo -u ${user} bash -c "/opt/.venv/sickchill/bin/pip3 install appdirs /opt/sickchill/" >> $log 2>&1
 
         cat > /etc/systemd/system/sickchill.service << SCSD
 [Unit]

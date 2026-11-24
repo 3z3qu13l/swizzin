@@ -36,8 +36,9 @@ CONF
     #Switching from roxedus' sources to ombi official ones
     if grep -q roxedus.github.io /etc/apt/sources.list.d/ombi.list; then
         echo_progress_start "Upgrading ombi apt sources to official ones"
-        curl -sSL https://apt.ombi.app/pub.key | gpg --dearmor > /usr/share/keyrings/ombi-archive-keyring.gpg 2>> "${log}"
-        echo "deb [signed-by=/usr/share/keyrings/ombi-archive-keyring.gpg] https://apt.ombi.app/master jessie main" > /etc/apt/sources.list.d/ombi.list
+        #shellcheck source=sources/functions/ombi
+        . /etc/swizzin/sources/functions/ombi
+        ombi_apt_source
         echo_progress_done "Sources changed"
         apt_update
     fi
