@@ -75,7 +75,7 @@ function update_nginx() {
     fi
 
     if [[ -f /install/.rutorrent.lock ]]; then
-        if grep -q "php" /etc/nginx/apps/rindex.conf; then
+        if grep -q "Content-Security-Policy" /etc/nginx/apps/rindex.conf; then
             :
         else
             echo_progress_start "Updating rutorrent nginx config"
@@ -104,7 +104,7 @@ EOR
     fi
 
     if [[ -f /install/.deluge.lock ]]; then
-        if grep -q "php" /etc/nginx/apps/dindex.conf; then
+        if grep -q "Content-Security-Policy" /etc/nginx/apps/dindex.conf; then
             :
         else
             echo_progress_start "Updating deluge nginx config"
@@ -133,7 +133,7 @@ DIN
     fi
 
     if [[ -f /install/.transmission.lock ]]; then
-        if grep -q "php" /etc/nginx/apps/tmsindex.conf; then
+        if grep -q "Content-Security-Policy" /etc/nginx/apps/tmsindex.conf; then
             :
         else
             echo_progress_start "Updating transmission nginx config"
@@ -145,6 +145,35 @@ location /transmission.downloads {
   auth_basic_user_file /etc/htpasswd;
 
   location ~* \.php$ {
+
+  }
+  # Files that a browser opens as a document able to run scripts (HTML, XML, SVG...,
+  # following nginx's mime.types) are sandboxed: their scripts cannot act as the
+  # dashboard. An add_header here replaces the server's, so those are repeated.
+  location ~* \.(s?html?|xhtml|xml|svgz?|atom|rss|mml|kml|xspf)\$ {
+    add_header Content-Security-Policy "sandbox" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+  }
+}
+DIN
+            echo_progress_done
+        fi
+    fi
+
+    if [[ -f /install/.qbittorrent.lock ]]; then
+        if grep -q "Content-Security-Policy" /etc/nginx/apps/qbtindex.conf; then
+            :
+        else
+            echo_progress_start "Updating qbittorrent nginx config"
+            cat > /etc/nginx/apps/qbtindex.conf << DIN
+location /qbittorrent.downloads {
+  alias /home/\$remote_user/torrents/qbittorrent;
+  include /etc/nginx/snippets/fancyindex.conf;
+  auth_basic "What's the password?";
+  auth_basic_user_file /etc/htpasswd;
+
+  location ~* \.php\$ {
 
   }
   # Files that a browser opens as a document able to run scripts (HTML, XML, SVG...,
