@@ -14,5 +14,5 @@ npm install -g flood >> ${log} 2>&1
 echo_progress_done
 
 for user in "${users[@]}"; do
-    systemctl try-restart flood${user}
+    systemctl try-restart "flood@${user}"
 done

@@ -147,8 +147,12 @@ EOH2
     echo_progress_done "Systemd files reconfigured"
 fi
 
-localversion=$(/opt/nzbhydra2/nzbhydra2 --version 2> /dev/null | grep -oP 'v\d+\.\d+\.\d+')
+localversion=$(cat /opt/nzbhydra2/.swizzin_version 2> /dev/null)
 latest=$(curl -s https://api.github.com/repos/theotherp/nzbhydra2/releases/latest | grep -E "browser_download_url" | grep linux | grep "$(_os_arch)" | head -1 | cut -d\" -f 4)
+if [[ -z $latest ]]; then
+    echo_error "Failed to query GitHub for the latest NZBHydra release"
+    exit 1
+fi
 latestversion=$(echo $latest | grep -oP 'v\d+\.\d+\.\d+')
 if [[ -z $localversion ]] || dpkg --compare-versions ${localversion#v} lt ${latestversion#v}; then
     echo_progress_start "Upgrading NZBHydra to ${latestversion}"
@@ -161,6 +165,7 @@ if [[ -z $localversion ]] || dpkg --compare-versions ${localversion#v} lt ${late
     rm -f nzbhydra2.zip
 
     chmod +x core nzbhydra2wrapperPy3.py
+    echo "$latestversion" > /opt/nzbhydra2/.swizzin_version
     chown -R ${username}: /opt/nzbhydra2
 
     if [[ $active == "active" ]]; then

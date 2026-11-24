@@ -44,6 +44,7 @@ unzip nzbhydra2.zip >> ${log} 2>&1
 rm -f nzbhydra2.zip
 
 chmod +x core nzbhydra2wrapperPy3.py
+echo "$latestversion" > /opt/nzbhydra2/.swizzin_version
 chown -R ${username}: /opt/nzbhydra2
 echo_progress_done
 

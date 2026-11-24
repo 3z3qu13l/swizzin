@@ -159,6 +159,8 @@ function python3_check_reqs() {
 
     report=$(/opt/.venv/"${app}"/bin/pip install -r "$reqs_path" --dry-run --quiet --disable-pip-version-check --report - 2>> "$log")
     to_install_count=$(jq '.install | length' <<< "$report")
+    # empty means pip or the report failed: treat as missing so the install runs
+    [[ -z $to_install_count ]] && return 1
     echo_log_only "Detected ${to_install_count} missing requirements for ${app} given reqs in ${reqs_path}"
 
     if [[ $to_install_count -gt 0 ]]; then

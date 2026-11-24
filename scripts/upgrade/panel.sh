@@ -14,18 +14,17 @@ if [[ -f /install/.panel.lock ]]; then
         echo_error "Failed to fetch latest commits for panel"
         exit 1
     }
-    new_commits_count=$(sudo -u swizzin git -C /opt/swizzin rev-list HEAD..@{u} --count)
+    new_commits_count=$(sudo -u swizzin git -C /opt/swizzin rev-list --count HEAD..origin/master 2>> "$log")
     if [[ $new_commits_count -gt 0 ]]; then
         echo_progress_start "Downloading latest panel commits"
         sudo -u swizzin git -C /opt/swizzin pull >> ${log} 2>&1 || { PANELRESET=1; }
         if [[ $PANELRESET == 1 ]]; then
-            echo_progress_start "Downloading latest panel commits"
             echo_warn "Working around unclean git repo"
             sudo -u swizzin git -C /opt/swizzin fetch origin master >> ${log} 2>&1
             cp -a /opt/swizzin/core/custom /opt/swizzin/core/custom.tmp
             sudo -u swizzin git -C /opt/swizzin reset --hard origin/master >> ${log} 2>&1
             mv /opt/swizzin/core/custom.tmp/* /opt/swizzin/core/custom/ >> ${log} 2>&1
-            rm -rf opt/swizzin/core/custom.tmp
+            rm -rf /opt/swizzin/core/custom.tmp
         fi
         echo_progress_done "Commits pulled"
         restart_needed=1
@@ -33,7 +32,7 @@ if [[ -f /install/.panel.lock ]]; then
 
     #shellcheck source=sources/functions/pyenv
     . /etc/swizzin/sources/functions/pyenv
-    if ! python3_check_reqs panel /opt/swizzin/requirements.txt >> ${log} 2>&1; then
+    if ! python3_check_reqs swizzin /opt/swizzin/requirements.txt >> ${log} 2>&1; then
         echo_progress_start "Installing updated requirements for panel"
         /opt/.venv/swizzin/bin/pip install --upgrade pip wheel >> ${log} 2>&1
         /opt/.venv/swizzin/bin/pip install -r /opt/swizzin/requirements.txt >> ${log} 2>&1
