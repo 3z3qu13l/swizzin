@@ -148,7 +148,7 @@ EOH2
 fi
 
 localversion=$(/opt/nzbhydra2/nzbhydra2 --version 2> /dev/null | grep -oP 'v\d+\.\d+\.\d+')
-latest=$(curl -s https://api.github.com/repos/theotherp/nzbhydra2/releases/latest | grep -E "browser_download_url" | grep linux | head -1 | cut -d\" -f 4)
+latest=$(curl -s https://api.github.com/repos/theotherp/nzbhydra2/releases/latest | grep -E "browser_download_url" | grep linux | grep "$(_os_arch)" | head -1 | cut -d\" -f 4)
 latestversion=$(echo $latest | grep -oP 'v\d+\.\d+\.\d+')
 if [[ -z $localversion ]] || dpkg --compare-versions ${localversion#v} lt ${latestversion#v}; then
     echo_progress_start "Upgrading NZBHydra to ${latestversion}"
@@ -160,7 +160,7 @@ if [[ -z $localversion ]] || dpkg --compare-versions ${localversion#v} lt ${late
     unzip nzbhydra2.zip >> ${log} 2>&1
     rm -f nzbhydra2.zip
 
-    chmod +x nzbhydra2 nzbhydra2wrapperPy3.py
+    chmod +x core nzbhydra2wrapperPy3.py
     chown -R ${username}: /opt/nzbhydra2
 
     if [[ $active == "active" ]]; then
