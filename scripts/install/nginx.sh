@@ -201,7 +201,7 @@ echo_progress_done "Config installed"
 
 echo_progress_start "Installing fancyindex"
 #shellcheck source=sources/functions/fancyindex
-. /etc/nginx/sources/functions/fancyindex
+. /etc/swizzin/sources/functions/fancyindex
 download_theme
 cat_config
 
