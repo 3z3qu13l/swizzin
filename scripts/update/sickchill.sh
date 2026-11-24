@@ -70,7 +70,7 @@ if [[ -f /install/.sickchill.lock ]]; then
         fi
         systemctl disable -q --now ${unit} >> ${log} 2>&1
         rm_if_exists /opt/.venv/sickchill
-        LIST='git python3-dev python3-venv python3-pip python3-rarfile'
+        LIST='git python3-dev python3-venv python3-pip'
         apt_install $LIST
         python3 -m venv /opt/.venv/sickchill
 

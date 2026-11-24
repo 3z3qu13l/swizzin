@@ -71,7 +71,7 @@ elif [[ $(_os_distro) == "debian" ]]; then
             if [[ $(_os_codename) != "trixie" ]]; then
                 apt-add-repository -y contrib >> ${log} 2>&1
             else
-                sed -i 's/^\(deb .*main\)/\1 contrib/' /etc/apt/sources.list >> ${log} 2>&1
+                sed -i '/debian\.org/ s/^\(deb .*main\)/\1 contrib/' /etc/apt/sources.list >> ${log} 2>&1
             fi
             trigger_apt_update=true
         fi
@@ -80,7 +80,7 @@ elif [[ $(_os_distro) == "debian" ]]; then
             if [[ $(_os_codename) != "trixie" ]]; then
                 apt-add-repository -y non-free >> ${log} 2>&1
             else
-                sed -i 's/^\(deb .*main.*\)/\1 non-free/' /etc/apt/sources.list >> ${log} 2>&1
+                sed -i '/debian\.org/ s/^\(deb .*main.*\)/\1 non-free/' /etc/apt/sources.list >> ${log} 2>&1
             fi
             trigger_apt_update=true
         fi
