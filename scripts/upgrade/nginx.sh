@@ -36,10 +36,14 @@ if [[ ! -f /etc/nginx/modules-enabled/50-mod-http-fancyindex.conf ]]; then
     ln -s /usr/share/nginx/modules-available/mod-http-fancyindex.conf /etc/nginx/modules-enabled/50-mod-http-fancyindex.conf
 fi
 
-for i in NGC SSC PROX FIC FIAC; do
+for i in NGC SSC PROX FIAC; do
     cmd=$(sed -n -e '/'$i'/,/'$i'/ p' /etc/swizzin/scripts/install/nginx.sh)
     eval "$cmd"
 done
+
+#shellcheck source=sources/functions/fancyindex
+. /etc/swizzin/sources/functions/fancyindex
+cat_config
 
 if [[ ! $hostname == "_" ]]; then
     sed -i "s/server_name _;/server_name $hostname;/g" /etc/nginx/sites-enabled/default
