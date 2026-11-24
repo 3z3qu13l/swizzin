@@ -6,6 +6,7 @@ if [[ -f /install/.nginx.lock ]]; then
 fi
 
 rm /etc/apt/sources.list.d/ombi.list
+rm -f /etc/apt/preferences.d/ombi
 
 if ask "Would you like to purge the configuration?" Y; then
     apt_remove ombi --purge

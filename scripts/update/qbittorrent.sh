@@ -27,6 +27,12 @@ if [[ -f /install/.qbittorrent.lock ]]; then
             systemctl reload nginx
             echo_progress_done
         fi
+        if ! grep -qE '^\s*proxy_set_header\s+Authorization' /etc/nginx/apps/qbittorrent.conf; then
+            echo_progress_start "Updating qBittorrent nginx config for 5.2+ authentication"
+            sed -r 's|(proxy_http_version .*)|\1\n    proxy_set_header        Authorization           "";|' -i /etc/nginx/apps/qbittorrent.conf
+            systemctl reload nginx
+            echo_progress_done
+        fi
         users=($(_get_user_list))
         for user in ${users[@]}; do
             if grep -q 'WebUI\\Address=\*' /home/${user}/.config/qBittorrent/qBittorrent.conf; then

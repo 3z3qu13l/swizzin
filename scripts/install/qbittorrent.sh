@@ -33,6 +33,9 @@ case ${QBITTORRENT_VERSION} in
         apt_install qbittorrent-nox
         ;;
     *)
+        # first call resolves 'latest' and refuses unsupported systems before anything is removed;
+        # the second recomputes the build variables, which the deluge rebuild path may overwrite
+        qbittorrent_version_info
         detect_libtorrent_rasterbar_conflict qbittorrent
         qbittorrent_version_info
         install_fpm

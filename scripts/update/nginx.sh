@@ -63,26 +63,19 @@ function update_nginx() {
         echo_progress_done
     done
 
-    if [[ ! -d /srv/fancyindex ]]; then
-        git clone https://github.com/Naereen/Nginx-Fancyindex-Theme/ /tmp/fancyindex >> $log 2>&1
-        mv /tmp/fancyindex/Nginx-Fancyindex-Theme-dark /srv/fancyindex >> $log 2>&1
-        rm -rf /tmp/fancyindex
-    fi
-
-    if grep -q -e "-dark" -e "Nginx-Fancyindex" /srv/fancyindex/header.html; then
+    if [[ ! -d /srv/fancyindex ]] || [ ! -f /srv/fancyindex/sw.js ]; then
         echo_progress_start "Updating fancyindex theme"
-        sed -i 's/href="\/[^\/]*/href="\/fancyindex/g' /srv/fancyindex/header.html
-        echo_progress_done
-    fi
 
-    if grep -q "Nginx-Fancyindex" /srv/fancyindex/footer.html; then
-        echo_progress_start "Updating fancyindex footer"
-        sed -i 's/src="\/[^\/]*/src="\/fancyindex/g' /srv/fancyindex/footer.html
+        #shellcheck source=sources/functions/fancyindex
+        . /etc/swizzin/sources/functions/fancyindex
+        download_theme
+        cat_config
+
         echo_progress_done
     fi
 
     if [[ -f /install/.rutorrent.lock ]]; then
-        if grep -q "php" /etc/nginx/apps/rindex.conf; then
+        if grep -q "Content-Security-Policy" /etc/nginx/apps/rindex.conf; then
             :
         else
             echo_progress_start "Updating rutorrent nginx config"
@@ -93,8 +86,16 @@ location /rtorrent.downloads {
   auth_basic "What's the password?";
   auth_basic_user_file /etc/htpasswd;
 
-  location ~* \.php$ {
+  location ~* \.php($|/) {
 
+  }
+  # Files that a browser opens as a document able to run scripts (HTML, XML, SVG...,
+  # following nginx's mime.types) are sandboxed: their scripts cannot act as the
+  # dashboard. An add_header here replaces the server's, so those are repeated.
+  location ~* \.(s?html?|xhtml|xml|svgz?|atom|rss|mml|kml|xspf)\$ {
+    add_header Content-Security-Policy "sandbox" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
   }
 }
 EOR
@@ -103,7 +104,7 @@ EOR
     fi
 
     if [[ -f /install/.deluge.lock ]]; then
-        if grep -q "php" /etc/nginx/apps/dindex.conf; then
+        if grep -q "Content-Security-Policy" /etc/nginx/apps/dindex.conf; then
             :
         else
             echo_progress_start "Updating deluge nginx config"
@@ -117,6 +118,14 @@ location /deluge.downloads {
   location ~* \.php$ {
 
   }
+  # Files that a browser opens as a document able to run scripts (HTML, XML, SVG...,
+  # following nginx's mime.types) are sandboxed: their scripts cannot act as the
+  # dashboard. An add_header here replaces the server's, so those are repeated.
+  location ~* \.(s?html?|xhtml|xml|svgz?|atom|rss|mml|kml|xspf)\$ {
+    add_header Content-Security-Policy "sandbox" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+  }
 }
 DIN
             echo_progress_done
@@ -124,7 +133,7 @@ DIN
     fi
 
     if [[ -f /install/.transmission.lock ]]; then
-        if grep -q "php" /etc/nginx/apps/tmsindex.conf; then
+        if grep -q "Content-Security-Policy" /etc/nginx/apps/tmsindex.conf; then
             :
         else
             echo_progress_start "Updating transmission nginx config"
@@ -137,6 +146,43 @@ location /transmission.downloads {
 
   location ~* \.php$ {
 
+  }
+  # Files that a browser opens as a document able to run scripts (HTML, XML, SVG...,
+  # following nginx's mime.types) are sandboxed: their scripts cannot act as the
+  # dashboard. An add_header here replaces the server's, so those are repeated.
+  location ~* \.(s?html?|xhtml|xml|svgz?|atom|rss|mml|kml|xspf)\$ {
+    add_header Content-Security-Policy "sandbox" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+  }
+}
+DIN
+            echo_progress_done
+        fi
+    fi
+
+    if [[ -f /install/.qbittorrent.lock ]]; then
+        if grep -q "Content-Security-Policy" /etc/nginx/apps/qbtindex.conf; then
+            :
+        else
+            echo_progress_start "Updating qbittorrent nginx config"
+            cat > /etc/nginx/apps/qbtindex.conf << DIN
+location /qbittorrent.downloads {
+  alias /home/\$remote_user/torrents/qbittorrent;
+  include /etc/nginx/snippets/fancyindex.conf;
+  auth_basic "What's the password?";
+  auth_basic_user_file /etc/htpasswd;
+
+  location ~* \.php\$ {
+
+  }
+  # Files that a browser opens as a document able to run scripts (HTML, XML, SVG...,
+  # following nginx's mime.types) are sandboxed: their scripts cannot act as the
+  # dashboard. An add_header here replaces the server's, so those are repeated.
+  location ~* \.(s?html?|xhtml|xml|svgz?|atom|rss|mml|kml|xspf)\$ {
+    add_header Content-Security-Policy "sandbox" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
   }
 }
 DIN
@@ -222,11 +268,12 @@ FIAC
         echo_progress_done
     fi
 
-    #TODO: This needs an if statement
     # fix /etc/nginx/sites-enabled/default to not cause nginx to fail on reloading when there are subdirectories in /etc/nginx/apps like /etc/nginx/apps/authelia
-    echo_progress_start "Fixing nginx for recursive configs"
-    sed 's|include /etc/nginx/apps/\*;|include /etc/nginx/apps/\*.conf;|g' -i /etc/nginx/sites-enabled/default
-    echo_progress_done
+    if ! grep -q "include /etc/nginx/apps/\*.conf;" /etc/nginx/sites-enabled/default; then
+        echo_progress_start "Fixing nginx for recursive configs"
+        sed 's|include /etc/nginx/apps/\*;|include /etc/nginx/apps/\*.conf;|g' -i /etc/nginx/sites-enabled/default
+        echo_progress_done
+    fi
 
     #TODO: This needs an if statement
     echo_progress_start "Restarting php-fpm and nginx"

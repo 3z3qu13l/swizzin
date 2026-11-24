@@ -39,6 +39,10 @@ FLUPS
     fi
 done
 
-sed -i '/ExecStart=/ s/$/ --baseuri=\/flood/' /etc/systemd/system/flood@.service
-systemctl daemon-reload
-systemctl try-restart flood@${user}
+if ! grep -q -- '--baseuri=/flood' /etc/systemd/system/flood@.service; then
+    sed -i '/ExecStart=/ s/$/ --baseuri=\/flood/' /etc/systemd/system/flood@.service
+    systemctl daemon-reload
+fi
+for u in "${users[@]}"; do
+    systemctl try-restart "flood@${u}"
+done

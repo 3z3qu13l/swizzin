@@ -42,8 +42,16 @@ deb-src [signed-by=/usr/share/keyrings/x2go-archive-keyring.gpg] http://packages
 #deb-src [signed-by=/usr/share/keyrings/x2go-archive-keyring.gpg] http://packages.x2go.org/debian ${release} heuler
 EOF
     echo_progress_done "Repo added"
-    mkdir -m 700 /root/.gnupg
-    gpg --no-default-keyring --keyring /usr/share/keyrings/x2go-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys E1F958385BFE2B6E >> ${log} 2>&1
+    mkdir -p /usr/share/keyrings
+    x2go_key=$(mktemp)
+    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xE1F958385BFE2B6E" -o "$x2go_key" >> ${log} 2>&1
+    if ! gpg --show-keys --with-colons "$x2go_key" 2>> ${log} | grep -q '^fpr:::::::::972FD88FA0BAFB578D0476DFE1F958385BFE2B6E:'; then
+        rm -f "$x2go_key"
+        echo_error "The x2go signing key could not be downloaded or does not match its fingerprint"
+        exit 1
+    fi
+    gpg --dearmor --yes -o /usr/share/keyrings/x2go-archive-keyring.gpg "$x2go_key" >> ${log} 2>&1
+    rm -f "$x2go_key"
     apt_update
     apt_install x2go-keyring
 fi

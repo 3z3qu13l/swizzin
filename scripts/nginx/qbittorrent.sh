@@ -14,7 +14,15 @@ location /qbittorrent.downloads {
 
   location ~* \.php\$ {
 
-  } 
+  }
+  # Files that a browser opens as a document able to run scripts (HTML, XML, SVG...,
+  # following nginx's mime.types) are sandboxed: their scripts cannot act as the
+  # dashboard. An add_header here replaces the server's, so those are repeated.
+  location ~* \.(s?html?|xhtml|xml|svgz?|atom|rss|mml|kml|xspf)\$ {
+    add_header Content-Security-Policy "sandbox" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+  }
 }
 DIN
 fi
@@ -28,6 +36,8 @@ location /qbt {
 location /qbittorrent/ {
     proxy_pass              http://$remote_user.qbittorrent;
     proxy_http_version      1.1;
+    # qBittorrent 5.2+ accepts Basic auth: do not forward the dashboard's credentials to it
+    proxy_set_header        Authorization           "";
     proxy_set_header        X-Forwarded-Host        $http_host;
     http2_push_preload on; # Enable http2 push
     auth_basic "What's the password?";

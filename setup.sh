@@ -198,7 +198,7 @@ _os() {
         echo_error "Your distribution ($distribution) is not supported. Swizzin requires Ubuntu or Debian."
         exit 1
     fi
-    if [[ ! $codename =~ ^(focal|bullseye|jammy|bookworm|noble)$ ]]; then
+    if [[ ! $codename =~ ^(focal|bullseye|jammy|bookworm|noble|trixie)$ ]]; then
         echo_error "Your release ($codename) of $distribution is not supported."
         exit 1
     fi
@@ -232,8 +232,8 @@ function _intro() {
 
 function _adduser() {
     echo_info "Creating master user"
-    export SETUP_USER=true                                     # This sets whiptail in box adduser
-    bash /etc/swizzin/scripts/box adduser "$user" "$pass" || { # TODO make it so that the password does not hit the logs
+    export SETUP_USER=true                                                            # This sets whiptail in box adduser
+    UNATTEND="${unattend}" bash /etc/swizzin/scripts/box adduser "$user" "$pass" || { # TODO make it so that the password does not hit the logs
         echo_error "Installation aborted!"
         exit 1
     }
