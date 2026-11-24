@@ -1,0 +1,228 @@
+#!/bin/bash
+# Homepage dashboard helpers
+
+homepage_dir="/opt/homepage"
+
+#shellcheck source=sources/functions/npm
+. /etc/swizzin/sources/functions/npm
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
+# Downloads and builds the latest Homepage release in $homepage_dir
+function homepage_build() {
+    local user version
+    user=$(_get_master_username)
+    version=$(github_latest_version gethomepage/homepage)
+    if [[ -z $version ]]; then
+        echo_error "Could not find the latest Homepage release"
+        exit 1
+    fi
+    npm_install
+    if ! command -v pnpm > /dev/null 2>&1; then
+        echo_progress_start "Installing pnpm"
+        npm install --quiet --global pnpm >> "$log" 2>&1
+        echo_progress_done
+    fi
+
+    # built aside, the current version keeps running if anything fails
+    local src="${homepage_dir}.src" new="${homepage_dir}.new" active
+    rm -rf "$src" "$new"
+    echo_progress_start "Downloading Homepage ${version}"
+    git clone -q --depth 1 -b "$version" https://github.com/gethomepage/homepage.git "$src" >> "$log" 2>&1 || {
+        echo_error "Failed to download Homepage"
+        rm -rf "$src"
+        exit 1
+    }
+    echo_progress_done
+
+    # the Next.js build needs more memory than small servers have
+    check_swap_on
+    echo_progress_start "Building Homepage (this can take a few minutes)"
+    (
+        cd "$src" || exit 1
+        export NEXT_TELEMETRY_DISABLED=1
+        pnpm install --frozen-lockfile && pnpm build
+    ) >> "$log" 2>&1 || {
+        echo_error "Failed to build Homepage"
+        rm -rf "$src"
+        check_swap_off
+        exit 1
+    }
+    check_swap_off
+    # same layout as the official image: standalone server, static assets and config skeleton
+    mkdir -p "${new}/.next" "${new}/src"
+    cp -a "${src}/.next/standalone/." "$new"
+    cp -a "${src}/.next/static" "${new}/.next/"
+    cp -a "${src}/public" "$new"
+    cp -a "${src}/src/skeleton" "${new}/src/"
+    rm -rf "$src"
+    chown -R "${user}:" "$new"
+    echo_progress_done
+
+    active=$(systemctl is-active homepage 2> /dev/null)
+    systemctl stop homepage > /dev/null 2>&1
+    rm -rf "$homepage_dir"
+    mv "$new" "$homepage_dir"
+    [[ $active == active ]] && systemctl start homepage
+    return 0
+}
+
+# app|name|path|group|icon, one tile per installed app reachable through nginx
+function _homepage_apps() {
+    cat << 'EOF'
+rutorrent|ruTorrent|/rutorrent/|Downloads|rutorrent
+flood|Flood|/flood/|Downloads|flood
+qbittorrent|qBittorrent|/qbittorrent/|Downloads|qbittorrent
+deluge|Deluge|/deluge/|Downloads|deluge
+transmission|Transmission|/transmission/web/|Downloads|transmission
+sabnzbd|SABnzbd|/sabnzbd/|Downloads|sabnzbd
+nzbget|NZBGet|/nzbget/|Downloads|nzbget
+autobrr|autobrr|/autobrr/|Downloads|autobrr
+qui|qui|/qui/|Downloads|qui
+sonarr|Sonarr|/sonarr/|Media|sonarr
+radarr|Radarr|/radarr/|Media|radarr
+lidarr|Lidarr|/lidarr/|Media|lidarr
+prowlarr|Prowlarr|/prowlarr/|Media|prowlarr
+bazarr|Bazarr|/bazarr/|Media|bazarr
+jackett|Jackett|/jackett/|Media|jackett
+nzbhydra|NZBHydra|/nzbhydra/|Media|nzbhydra2
+medusa|Medusa|/medusa/|Media|medusa
+mylar|Mylar|/mylar/|Media|mylar3
+sickchill|SickChill|/sickchill/|Media|sickchill
+sickgear|SickGear|/sickgear/|Media|sickgear
+ombi|Ombi|/ombi/|Media|ombi
+jellyfin|Jellyfin|/jellyfin/|Media|jellyfin
+emby|Emby|/emby/|Media|emby
+tautulli|Tautulli|/tautulli/|Media|tautulli
+navidrome|Navidrome|/navidrome/|Media|navidrome
+airsonic|Airsonic|/airsonic/|Media|airsonic
+calibreweb|Calibre-Web|/calibreweb/|Media|calibre-web
+filebrowser|File Browser|/filebrowser/|Tools|filebrowser
+syncthing|Syncthing|/syncthing/|Tools|syncthing
+lounge|The Lounge|/irc/|Tools|the-lounge
+netdata|Netdata|/netdata/|Tools|netdata
+librespeed|LibreSpeed|/librespeed/|Tools|librespeed
+organizr|Organizr|/organizr/|Tools|organizr
+shellinabox|Shell In A Box|/shell/|Tools|terminal
+webmin|Webmin|/webmin/|Tools|webmin
+EOF
+}
+
+# Prints the local address of an app, empty when its port cannot be found.
+# Widgets query the apps from the server itself.
+function _homepage_local_url() {
+    local app=$1 user=$2 port
+    case $app in
+        rutorrent)
+            echo "https://127.0.0.1/rutorrent"
+            ;;
+        flood)
+            port=$(sed -n 's/^FLOOD_PORT=//p' "/home/${user}/.config/flood/env" 2> /dev/null)
+            [[ -n $port ]] && echo "http://127.0.0.1:${port}/flood"
+            ;;
+        transmission)
+            # Transmission 5 renames the key to rpc_port
+            port=$(jq -r '.["rpc-port"] // .rpc_port // empty' "/home/${user}/.config/transmission-daemon/settings.json" 2> /dev/null)
+            [[ -n $port ]] && echo "http://127.0.0.1:${port}"
+            ;;
+        qbittorrent)
+            port=$(sed -n 's/^WebUI\\Port=//p' "/home/${user}/.config/qBittorrent/qBittorrent.conf" 2> /dev/null)
+            [[ -n $port ]] && echo "http://127.0.0.1:${port}"
+            ;;
+        deluge)
+            port=$(jq -r '.port // empty' "/home/${user}/.config/deluge/web.conf" 2> /dev/null)
+            [[ -n $port ]] && echo "http://127.0.0.1:${port}"
+            ;;
+        filebrowser)
+            port=$(grep -oP 'proxy_pass https://127\.0\.0\.1:\K[0-9]+' /etc/nginx/apps/filebrowser.conf 2> /dev/null)
+            [[ -n $port ]] && echo "https://127.0.0.1:${port}/filebrowser"
+            ;;
+        netdata)
+            echo "http://127.0.0.1:19999"
+            ;;
+        *) ;;
+    esac
+    return 0
+}
+
+# Prints the widget of an app, empty when the app has no supported widget.
+function _homepage_app_extras() {
+    local app=$1 user=$2 url
+    url=$(_homepage_local_url "$app" "$user")
+    [[ -n $url ]] || return 0
+    case $app in
+        rutorrent | flood | qbittorrent | deluge | transmission | filebrowser | netdata) ;;
+        *) return 0 ;;
+    esac
+    echo "        widget:"
+    echo "          type: ${app}"
+    echo "          url: ${url}"
+    case $app in
+        netdata) ;;
+        # deluge only knows a password
+        deluge) echo "          password: {{HOMEPAGE_FILE_SWIZZIN_PASSWORD}}" ;;
+        *)
+            echo "          username: $(jq -Rn --arg u "$user" '$u')"
+            echo "          password: {{HOMEPAGE_FILE_SWIZZIN_PASSWORD}}"
+            ;;
+    esac
+}
+
+# Rewrites services.yaml from the installed apps and the master password file.
+# Called by box after every install, remove and password change.
+function homepage_services() {
+    local user conf app name path group icon current=""
+    user=$(_get_master_username)
+    conf="/home/${user}/.config/homepage"
+    mkdir -p "$conf"
+
+    # Homepage pastes the file content into the YAML as is, a JSON string keeps any password valid YAML
+    (
+        umask 077
+        _get_user_password "$user" | tr -d '\n' | jq -Rs . | tr -d '\n' > "${conf}/.swizzin.password.tmp"
+        mv -f "${conf}/.swizzin.password.tmp" "${conf}/swizzin.password"
+    )
+
+    # replaces Homepage's sample bookmarks, the file then belongs to the user
+    if [[ ! -f ${conf}/bookmarks.yaml ]]; then
+        echo "# Your own links, see https://gethomepage.dev/configs/bookmarks/" > "${conf}/bookmarks.yaml"
+        echo "[]" >> "${conf}/bookmarks.yaml"
+    fi
+    # default layout: one full width row of three cards per group
+    if [[ ! -f ${conf}/settings.yaml ]]; then
+        cat > "${conf}/settings.yaml" << 'EOF'
+# Your settings, see https://gethomepage.dev/configs/settings/
+title: swizzin
+layout:
+  Downloads:
+    style: row
+    columns: 3
+  Media:
+    style: row
+    columns: 3
+  Tools:
+    style: row
+    columns: 3
+EOF
+    fi
+
+    {
+        echo "# Generated by swizzin after each box install, remove or chpasswd: manual changes are overwritten."
+        echo "# Put your own links in bookmarks.yaml."
+        while IFS='|' read -r app name path group icon; do
+            [[ -f /install/.${app}.lock ]] || continue
+            if [[ $group != "$current" ]]; then
+                echo "- ${group}:"
+                current=$group
+            fi
+            echo "    - ${name}:"
+            echo "        icon: ${icon}.png"
+            echo "        href: /swizzin${path}"
+            _homepage_app_extras "$app" "$user"
+        done < <(_homepage_apps | sort -t'|' -k4,4 -s)
+        [[ -n $current ]] || echo "[]"
+    } > "${conf}/.services.yaml.tmp"
+    chown -R "${user}:" "$conf"
+    # Homepage reads the file on every request, never let it see a half written one
+    mv -f "${conf}/.services.yaml.tmp" "${conf}/services.yaml"
+}

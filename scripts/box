@@ -57,6 +57,7 @@ function _install() {
         echo_info "Installing ${result}"
         bash "/usr/local/bin/swizzin/install/${result}.sh"
     done
+    _homepage_refresh
 
     rm results
     _function
@@ -77,6 +78,7 @@ function _remove() {
         echo_info -e "Removing ${result}"
         bash /usr/local/bin/swizzin/remove/${result}.sh
     done
+    _homepage_refresh
     rm results
     _function
 }
@@ -98,6 +100,7 @@ function _cli() {
             fi
         fi
     done
+    _homepage_refresh
 }
 
 function _clr() {
@@ -116,6 +119,15 @@ function _clr() {
     if [[ $schedule_remove = "true" ]]; then
         apt_autoremove
     fi
+    _homepage_refresh
+}
+
+# Homepage lists the installed apps and holds the master password, keep it in sync
+function _homepage_refresh() {
+    [[ -f /install/.homepage.lock ]] || return 0
+    #shellcheck source=sources/functions/homepage
+    . /etc/swizzin/sources/functions/homepage
+    homepage_services
 }
 
 function _update() {
@@ -504,6 +516,7 @@ function _chpasswd() {
             esac
         fi
     done
+    _homepage_refresh
     echo_success "Password for $user changed"
     pass=""
     unset pass
