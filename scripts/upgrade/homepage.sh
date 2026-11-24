@@ -10,5 +10,6 @@ fi
 . /etc/swizzin/sources/functions/homepage
 
 homepage_build
+homepage_glances
 homepage_services
 echo_success "Homepage upgraded"
