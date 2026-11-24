@@ -86,7 +86,7 @@ location /rtorrent.downloads {
   auth_basic "What's the password?";
   auth_basic_user_file /etc/htpasswd;
 
-  location ~* \.php$ {
+  location ~* \.php($|/) {
 
   }
   # Files that a browser opens as a document able to run scripts (HTML, XML, SVG...,
