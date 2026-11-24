@@ -62,9 +62,12 @@ _config() {
         # These commands configure some options in the database.
         "/home/${username}/bin/filebrowser" config set -t "/home/${username}/.ssl/${username}-self-signed.crt" -k "/home/${username}/.ssl/${username}-self-signed.key" -d "/home/${username}/.config/Filebrowser/filebrowser.db"
         "/home/${username}/bin/filebrowser" config set -a 0.0.0.0 -p "${app_port_http}" -l "/home/${username}/.config/Filebrowser/filebrowser.log" -d "/home/${username}/.config/Filebrowser/filebrowser.db"
-        "/home/${username}/bin/filebrowser" config set --minimumPasswordLength 8 -l "/home/${username}/.config/Filebrowser/filebrowser.log" -d "/home/${username}/.config/Filebrowser/filebrowser.db"
-        "/home/${username}/bin/filebrowser" users add "${username}" "${password}" --perm.admin -d "/home/${username}/.config/Filebrowser/filebrowser.db"
+        # swizzin already checks the password strength, a shorter swizzin password would make users add fail
+        "/home/${username}/bin/filebrowser" config set --minimumPasswordLength 1 -l "/home/${username}/.config/Filebrowser/filebrowser.log" -d "/home/${username}/.config/Filebrowser/filebrowser.db"
     } >> "$log" 2>&1
+    # -- keeps a password starting with a dash from being read as an option
+    "/home/${username}/bin/filebrowser" users add --perm.admin -d "/home/${username}/.config/Filebrowser/filebrowser.db" -- "${username}" "${password}" >> "$log" 2>&1 ||
+        echo_warn "Could not create the File Browser user (see $log), run box chpasswd ${username} with another password to retry"
 
     # Set the permissions after we are finsished configuring filebrowser.
     chown "${username}:" -R "/home/${username}/bin"
