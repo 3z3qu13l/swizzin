@@ -10,7 +10,13 @@ function whiptail_rtorrent() {
 
         whiptail --title "rTorrent Install Advisory" --msgbox "We recommend the latest rTorrent version selection instead of repo (distro) releases. They will compile additional performance and stability improvements in 90s." 15 50
 
+        newest=()
+        if rtorrent_016_supported; then
+            newest=(0.16.28 "")
+        fi
+
         function=$(whiptail --title "Choose an rTorrent version" --menu "All versions other than repo will be locally compiled from source" --ok-button "Continue" 14 50 5 \
+            "${newest[@]}" \
             0.15.7 "(UDNS)" \
             0.15.5 "(UDNS)" \
             0.15.3 "(UDNS)" \
@@ -72,6 +78,15 @@ function set_rtorrent_version() {
             export libtorrentver='0.15.7'
             ;;
 
+        0.16.28 | '0.16.28')
+            if ! rtorrent_016_supported; then
+                echo_error "rTorrent 0.16 needs a C++20 compiler and is not available on ${codename}"
+                exit 1
+            fi
+            export rtorrentver='0.16.28'
+            export libtorrentver='0.16.28'
+            ;;
+
         Repo | 'Repo')
             export rtorrentver='repo'
             export libtorrentver='repo'
@@ -82,6 +97,40 @@ function set_rtorrent_version() {
             exit 1
             ;;
     esac
+}
+
+# 0.16 requires C++20; older distros ship GCC 11 or less
+function rtorrent_016_supported() {
+    [[ ! $codename =~ ^(buster|bullseye|focal|jammy)$ ]]
+}
+
+# 0.16 renamed or removed some commands, the old names only work with rtorrent -D
+function rtorrent_installed_atleast() {
+    local version
+    version=$(dpkg-query -W -f='${Version}' rtorrent 2> /dev/null)
+    dpkg --compare-versions "${version:-0}" ge "$1"
+}
+
+function rtorrent_rc_convert() {
+    local rc=$1
+    [[ -f $rc ]] || return 0
+    # schedule and execute behave like schedule2 and execute2 on every version
+    sed -i -E 's/\b(schedule|execute)2(\s*=)/\1\2/g' "$rc"
+    if rtorrent_installed_atleast 0.16.18; then
+        # rtorrent itself maps the swizzin legacy encryption options to allow
+        sed -i -E -e 's/\bnetwork\.port_(range|random)\.set\b/network.listen.port.\1.set/g' \
+            -e 's/^(\s*)port_random\b/\1network.listen.port.random.set/' \
+            -e 's/^(\s*)encryption\s*=\s*allow_incoming,try_outgoing,enable_retry\s*$/\1protocol.encryption.set = allow/' "$rc"
+    else
+        sed -i -E -e 's/\bnetwork\.listen\.port\.(range|random)\.set\b/network.port_\1.set/g' \
+            -e 's/^(\s*)protocol\.encryption\.set\s*=\s*allow\s*$/\1encryption = allow_incoming,try_outgoing,enable_retry/' "$rc"
+    fi
+    if rtorrent_installed_atleast 0.16; then
+        sed -i -E -e 's/\bschedule_remove2\b/schedule.remove/g' \
+            -e '/^\s*(encoding\.add|trackers\.use_udp\.set)\b/d' "$rc"
+    else
+        sed -i -E 's/\bschedule\.remove\b/schedule_remove2/g' "$rc"
+    fi
 }
 
 function configure_rtorrent() {
@@ -137,7 +186,7 @@ function depends_rtorrent() {
 }
 
 function build_xmlrpc-c() {
-    if [[ ! ${rtorrentver} == "0.15.1" && ! ${rtorrentver} == "0.15.3" && ! ${rtorrentver} == "0.15.5" && ! ${rtorrentver} == "0.15.7" ]]; then
+    if [[ ! ${rtorrentver} == "0.15.1" && ! ${rtorrentver} == "0.15.3" && ! ${rtorrentver} == "0.15.5" && ! ${rtorrentver} == "0.15.7" && ! ${rtorrentver} == "0.16.28" ]]; then
         build_xmlrpc-c_old
     fi
 }
@@ -171,7 +220,7 @@ function build_xmlrpc-c_old() {
 }
 
 function build_libtorrent_rakshasa() {
-    if [[ ${libtorrentver} == "0.14.0" || ${libtorrentver} == "0.15.1" || ${libtorrentver} == "0.15.3" || ${libtorrentver} == "0.15.5" || ${libtorrentver} == "0.15.7" ]]; then
+    if [[ ${libtorrentver} == "0.14.0" || ${libtorrentver} == "0.15.1" || ${libtorrentver} == "0.15.3" || ${libtorrentver} == "0.15.5" || ${libtorrentver} == "0.15.7" || ${libtorrentver} == "0.16.28" ]]; then
         build_libtorrent_rakshasa_new
     else
         build_libtorrent_rakshasa_old
@@ -269,7 +318,7 @@ function install_libtorrent_rakshasa() {
 }
 
 function build_rtorrent() {
-    if [[ ${rtorrentver} == "0.10.0" || ${rtorrentver} == "0.15.1" || ${rtorrentver} == "0.15.3" || ${rtorrentver} == "0.15.5" || ${rtorrentver} == "0.15.7" ]]; then
+    if [[ ${rtorrentver} == "0.10.0" || ${rtorrentver} == "0.15.1" || ${rtorrentver} == "0.15.3" || ${rtorrentver} == "0.15.5" || ${rtorrentver} == "0.15.7" || ${rtorrentver} == "0.16.28" ]]; then
         build_rtorrent_new
     else
         build_rtorrent_old
