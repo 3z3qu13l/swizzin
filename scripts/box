@@ -397,7 +397,7 @@ function _deluser() {
                     if [[ ! -f /install/.rutorrent.lock ]]; then touch /install/.rutorrent.lock; fi
                     rm -rf /srv/rutorrent/conf/users/${user}
                     rm -rf /srv/rutorrent/share/users/${user}
-                    rm -f /etc/nginx/apps/${user}*
+                    rm -f /etc/nginx/apps/${user}.*
                     ;;
                 wireguard)
                     rm -rf /home/${user}/.wireguard
@@ -421,7 +421,7 @@ function _deluser() {
     rm -f /etc/htpasswd.d/htpasswd.${user}
     htpasswd -D /etc/htpasswd ${user} >> $log 2>&1
     rm -f /etc/tmpfiles.d/${user}.conf
-    rm -f /etc/nginx/conf.d/${user}*
+    rm -f /etc/nginx/conf.d/${user}.*
     rm -f /etc/sudoers.d/${user}
     rm -rf /run/screen/S-${user}
     rm -rf /var/run/${user}
