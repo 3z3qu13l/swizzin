@@ -105,11 +105,12 @@ librespeed|LibreSpeed|/librespeed/|Tools|librespeed
 organizr|Organizr|/organizr/|Tools|organizr
 shellinabox|Shell In A Box|/shell/|Tools|terminal
 webmin|Webmin|/webmin/|Tools|webmin
+panel|swizzin panel|/|Tools|mdi-view-dashboard
 EOF
 }
 
 # Prints the local address of an app, empty when its port cannot be found.
-# Widgets query the apps from the server itself.
+# Widgets and status checks query the apps from the server itself.
 function _homepage_local_url() {
     local app=$1 user=$2 port
     case $app in
@@ -145,11 +146,20 @@ function _homepage_local_url() {
     return 0
 }
 
-# Prints the widget of an app, empty when the app has no supported widget.
+# Prints the status badge and widget of an app.
+# The badge queries the app itself, not nginx: its login would answer for a stopped app.
 function _homepage_app_extras() {
     local app=$1 user=$2 url
     url=$(_homepage_local_url "$app" "$user")
     [[ -n $url ]] || return 0
+    # No badge for ruTorrent (behind the nginx login) nor Transmission: before 4.0 it locks
+    # its RPC for everyone after 100 requests without a password, until it restarts.
+    case $app in
+        # answers 401 at once, rate limited to 200 calls per 5 minutes per address
+        flood) echo "        siteMonitor: ${url}/api/auth/verify" ;;
+        qbittorrent | deluge | filebrowser) echo "        siteMonitor: ${url}" ;;
+        *) ;;
+    esac
     case $app in
         rutorrent | flood | qbittorrent | deluge | transmission | filebrowser | netdata) ;;
         *) return 0 ;;
@@ -314,7 +324,9 @@ EOF
                 current=$group
             fi
             echo "    - ${name}:"
-            echo "        icon: ${icon}.png"
+            # mdi-* icons come from Material Design, the others from the dashboard icons
+            [[ $icon == mdi-* ]] || icon="${icon}.png"
+            echo "        icon: ${icon}"
             echo "        href: /swizzin${path}"
             _homepage_app_extras "$app" "$user"
         done < <(_homepage_apps | sort -t'|' -k4,4 -s)
