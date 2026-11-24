@@ -4,15 +4,9 @@
 
 function _sources() {
     echo_progress_start "Installing ombi apt sources"
-    if [[ "$(_os_distro)" == "debian" ]] && [[ "$(_os_codename)" == "trixie" ]]; then
-        # Ombi's repo currently serves unsigned metadata rejected by apt on trixie.
-        # Keep apt-based installs working here while preserving signed-by flow elsewhere.
-        echo "deb [trusted=yes] https://apt.ombi.app/master jessie main" > /etc/apt/sources.list.d/ombi.list
-        echo_warn "Using trusted Ombi repository on Debian trixie due to upstream unsigned metadata."
-    else
-        echo "deb [signed-by=/usr/share/keyrings/ombi-archive-keyring.gpg] https://apt.ombi.app/master jessie main" > /etc/apt/sources.list.d/ombi.list
-        curl -s https://apt.ombi.app/pub.key | gpg --dearmor > /usr/share/keyrings/ombi-archive-keyring.gpg 2>> ${log}
-    fi
+    #shellcheck source=sources/functions/ombi
+    . /etc/swizzin/sources/functions/ombi
+    ombi_apt_source
     echo_progress_done "Sources installed"
     apt_update
 }

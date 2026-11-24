@@ -42,6 +42,16 @@ CONF
         apt_update
     fi
 
+    # Servers upgraded to trixie in place: the signed-by source makes every apt update fail there
+    if [[ $(_os_codename) == "trixie" ]] && grep -q signed-by /etc/apt/sources.list.d/ombi.list; then
+        echo_progress_start "Switching ombi apt source for Debian trixie"
+        #shellcheck source=sources/functions/ombi
+        . /etc/swizzin/sources/functions/ombi
+        ombi_apt_source
+        echo_progress_done
+        apt_update
+    fi
+
     #nagging v3 users to upgrade
     if grep -q turd /etc/apt/sources.list.d/ombi.list; then
         echo_warn "Your ombi install (v3) has reached EOL. Please upgrade it with \`box upgrade ombi\` to v4"

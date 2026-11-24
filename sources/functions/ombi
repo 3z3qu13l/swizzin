@@ -1,0 +1,22 @@
+#!/bin/bash
+
+function ombi_apt_source() {
+    if [[ $(_os_codename) == "trixie" ]]; then
+        # apt.ombi.app's key is bound with SHA1 signatures, which apt's verifier (sqv) rejects on trixie,
+        # so the repo cannot be verified. Pin it so it can only ever provide the ombi package.
+        echo "deb [trusted=yes] https://apt.ombi.app/master jessie main" > /etc/apt/sources.list.d/ombi.list
+        cat > /etc/apt/preferences.d/ombi << PIN
+Package: ombi
+Pin: origin apt.ombi.app
+Pin-Priority: 500
+
+Package: *
+Pin: origin apt.ombi.app
+Pin-Priority: -1
+PIN
+        echo_warn "Ombi's apt repository cannot be verified on Debian trixie (its signing key uses SHA1). It is restricted to the ombi package only."
+    else
+        echo "deb [signed-by=/usr/share/keyrings/ombi-archive-keyring.gpg] https://apt.ombi.app/master jessie main" > /etc/apt/sources.list.d/ombi.list
+        curl -s https://apt.ombi.app/pub.key | gpg --dearmor > /usr/share/keyrings/ombi-archive-keyring.gpg 2>> ${log}
+    fi
+}
