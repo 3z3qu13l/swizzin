@@ -352,7 +352,11 @@ function _itthemes() {
         cd /srv/rutorrent/plugins/theme/themes
         case "$result" in
             club-QuickBox)
-                git clone https://github.com/QuickBox/club-QuickBox.git ${result} > /dev/null 2>&1
+                if [[ -e ${result} ]]; then
+                    echo_warn "${result} is already installed"
+                else
+                    rutorrent_club_quickbox
+                fi
                 ;;
             Acid | Agent34 | Agent46 | Blue | Dark | DarkBetter | Excel | FlatUI_Dark | FlatUI_Light | FlatUI_Material | MaterialDesign | Oblivion | OblivionBlue)
                 # ruTorrent's own themes first, then the archived ArtyumX collection (exetico/FlatUI is gone)

@@ -52,13 +52,7 @@ function rutorrent_install() {
     fi
 
     if [[ ! -d /srv/rutorrent/plugins/theme/themes/club-QuickBox ]]; then
-        git clone --depth 1 -b latest https://github.com/QuickBox/club-QuickBox.git /srv/rutorrent/plugins/theme/themes/club-QuickBox >> ${log} 2>&1 || {
-            echo_error "git of club-QuickBox theme seems to have failed"
-        }
-    fi
-    # Only replaces an unset default, a theme chosen in the conf is kept
-    if [[ -d /srv/rutorrent/plugins/theme/themes/club-QuickBox ]]; then
-        sed -i 's/^\$defaultTheme = "";/$defaultTheme = "club-QuickBox";/' /srv/rutorrent/plugins/theme/conf.php
+        rutorrent_club_quickbox
     fi
 
     echo_progress_done "Plugins downloaded"
@@ -154,6 +148,23 @@ function rutorrent_install() {
 	$enabledOrigins = array();		// List of enabled domains for CSRF check (only hostnames, without protocols, port etc.).
 					            	// If empty, then will retrieve domain from HTTP_HOST / HTTP_X_FORWARDED_HOST
 RUC
+}
+
+# Installs the club-QuickBox theme from GitHub, or from the copy kept in sources/vendor when GitHub cannot provide it
+function rutorrent_club_quickbox() {
+    local dest=/srv/rutorrent/plugins/theme/themes/club-QuickBox
+    # no credential prompt if the repository went private
+    if GIT_TERMINAL_PROMPT=0 timeout 60 git clone --depth 1 -b latest https://github.com/QuickBox/club-QuickBox.git "$dest" >> "$log" 2>&1; then
+        return 0
+    fi
+    rm -rf "$dest"
+    echo_warn "Could not download the club-QuickBox theme, installing the copy kept by swizzin"
+    cp -r /etc/swizzin/sources/vendor/club-QuickBox "$dest" || {
+        echo_error "The club-QuickBox theme could not be installed"
+        return 1
+    }
+    # box update makes sources/ readable by root only
+    chmod -R u=rwX,go=rX "$dest"
 }
 
 function rutorrent_fm_config() {

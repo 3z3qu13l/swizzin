@@ -2,16 +2,30 @@
 
 if [ -f /install/.rutorrent.lock ]; then
     #Update club-QuickBox with latest changes
-    if [[ -d /srv/rutorrent/plugins/theme/themes/club-QuickBox ]]; then
-        find /srv/rutorrent/plugins/theme/themes/club-QuickBox -user root -exec chown www-data: {} \;
-        cqbdir="/srv/rutorrent/plugins/theme/themes/club-QuickBox"
-        sudo -u www-data git -C "$cqbdir" fetch
-        if [[ ! $(sudo -u www-data git -C "$cqbdir" rev-parse HEAD) == $(sudo -u www-data git -C "$cqbdir" rev-parse @{u}) ]]; then
+    # club-QuickBox was briefly set as the server-wide default theme, each user now picks theirs
+    sed -i 's/^\$defaultTheme = "club-QuickBox";/$defaultTheme = "";/' /srv/rutorrent/plugins/theme/conf.php 2> /dev/null
+
+    cqbdir="/srv/rutorrent/plugins/theme/themes/club-QuickBox"
+    # Only a clone of its own: a copy without .git would make git act on /srv/rutorrent itself.
+    # No credential prompt if the repository went private.
+    if [[ -d $cqbdir/.git ]]; then
+        find "$cqbdir" -user root -exec chown www-data: {} \;
+        if timeout 60 sudo -u www-data env GIT_TERMINAL_PROMPT=0 git -C "$cqbdir" fetch >> $log 2>&1 &&
+            [[ ! $(sudo -u www-data git -C "$cqbdir" rev-parse HEAD) == $(sudo -u www-data git -C "$cqbdir" rev-parse @{u}) ]]; then
             echo_progress_start "Updating rutorrent theme"
             sudo -u www-data git -C "$cqbdir" reset HEAD --hard >> $log 2>&1
-            sudo -u www-data git -C "$cqbdir" pull >> $log 2>&1
+            timeout 60 sudo -u www-data env GIT_TERMINAL_PROMPT=0 git -C "$cqbdir" pull >> $log 2>&1
             echo_progress_done
         fi
+    elif [[ -d $cqbdir ]] && rm -rf "${cqbdir}.new" &&
+        GIT_TERMINAL_PROMPT=0 timeout 60 git clone --depth 1 -b latest https://github.com/QuickBox/club-QuickBox.git "${cqbdir}.new" >> $log 2>&1; then
+        # the copy kept by swizzin was installed while GitHub was unavailable, switch back to GitHub
+        echo_progress_start "Updating rutorrent theme from GitHub"
+        rm -rf "${cqbdir}.old" && mv "$cqbdir" "${cqbdir}.old" && mv "${cqbdir}.new" "$cqbdir" && rm -rf "${cqbdir}.old"
+        chown -R www-data: "$cqbdir"
+        echo_progress_done
+    else
+        rm -rf "${cqbdir}.new"
     fi
 
     reloadnginx=0

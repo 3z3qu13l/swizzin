@@ -19,7 +19,7 @@ This is [3z3qu13l/swizzin](https://github.com/3z3qu13l/swizzin), a fork of [swiz
 -   **Ubuntu 26.04** (resolute) support: nginx no longer asks for `php-opcache`, which PHP 8.5 builds in, and Deluge's libtorrent links the jitterentropy library that Ubuntu's OpenSSL needs.
 -   **Ombi 4.53**: the package's install script fails on every OS, since it still looks for a file the package moved. `box install ombi` works around it. After an `apt upgrade` of an existing Ombi to 4.53, run `box update` to finish it.
 -   **`box rtx` without svn**: plugins and themes install again, since GitHub [shut down svn in 2024](https://github.blog/changelog/2024-01-08-subversion-has-been-sunset/). ruTorrent's own ones are restored from its local copy ([#7](https://github.com/3z3qu13l/swizzin/pull/7), swizzin/swizzin#1193, swizzin/swizzin#1233).
--   **ruTorrent theme**: [club-QuickBox](https://github.com/QuickBox/club-QuickBox) is installed with ruTorrent and set as the default theme. Each user can still pick another one in ruTorrent's settings. Existing installs can add it with `box rtx` and pick it in ruTorrent's settings.
+-   **ruTorrent theme**: [club-QuickBox](https://github.com/QuickBox/club-QuickBox) is installed with ruTorrent, and each user can pick it in ruTorrent's settings (the default theme is unchanged). Existing installs can add it with `box rtx`. If GitHub cannot provide it, the copy kept in `sources/vendor` is installed instead, and `box update` switches back to GitHub once it is reachable.
 
 ## What is swizzin?
 Swizzin is a light, modular seedbox solution that can be installed on Debian 11/12/13 or Ubuntu 20.04/22.04/24.04/26.04. The QuickBox package repo has been ported over for your installing pleasure, including the panel -- if you so choose!
