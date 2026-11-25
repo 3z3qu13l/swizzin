@@ -119,6 +119,7 @@ Box functions:
     -   Usage: `box update`
 -   upgrade - upgrade the given package (available scripts are in scripts/upgrade)
     -   Usage: `box upgrade nginx`
+    -   `box upgrade --all` upgrades every installed package, except those that ask questions or rebuild for a long time (rtorrent, qbittorrent, deluge, nginx, plex, sonarr). A failure does not stop the others, they are listed at the end. Some upgrade scripts do not report every error, so check the app if something looks off.
 -   test - checks that the given installed packages run and answer (available tests are in scripts/tests)
     -   Usage: `box test homepage`
 -   rmgrsec - removes grsec kernels installed by ovh

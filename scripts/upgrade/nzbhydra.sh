@@ -6,6 +6,10 @@ active=$(systemctl is-active nzbhydra)
 username=$(_get_master_username)
 
 if [[ -d /opt/.venv/nzbhydra ]]; then
+    if [[ -n $SWIZZIN_UPGRADE_ALL ]]; then
+        echo_warn "NZBHydra v1 needs a migration, upgrade it on its own with: box upgrade nzbhydra"
+        exit 1
+    fi
     echo_query "NZBHydra v1 detected. Do you want to migrate data?\nIf you select no, a migration will not be attempted but your old data will be left." ""
     select yn in "Yes" "No"; do
         case $yn in
@@ -154,15 +158,33 @@ if [[ -z $latest ]]; then
     exit 1
 fi
 latestversion=$(echo $latest | grep -oP 'v\d+\.\d+\.\d+')
+if [[ -z $latestversion ]]; then
+    echo_error "Could not read the latest NZBHydra version from ${latest}"
+    exit 1
+fi
 if [[ -z $localversion ]] || dpkg --compare-versions ${localversion#v} lt ${latestversion#v}; then
     echo_progress_start "Upgrading NZBHydra to ${latestversion}"
+    # downloaded first, so a failed download leaves the current install in place
+    wget -O /tmp/nzbhydra2.zip ${latest} >> ${log} 2>&1 || {
+        echo_error "Failed to download NZBHydra ${latestversion}"
+        rm -f /tmp/nzbhydra2.zip
+        exit 1
+    }
+    unzip -tq /tmp/nzbhydra2.zip >> ${log} 2>&1 || {
+        echo_error "The downloaded NZBHydra archive is corrupt"
+        rm -f /tmp/nzbhydra2.zip
+        exit 1
+    }
     cd /opt
     rm_if_exists /opt/nzbhydra2
     mkdir nzbhydra2
     cd nzbhydra2
-    wget -O nzbhydra2.zip ${latest} >> ${log} 2>&1
-    unzip nzbhydra2.zip >> ${log} 2>&1
-    rm -f nzbhydra2.zip
+    unzip /tmp/nzbhydra2.zip >> ${log} 2>&1 || {
+        echo_error "Failed to extract NZBHydra, reinstall it with: box remove nzbhydra && box install nzbhydra"
+        rm -f /tmp/nzbhydra2.zip
+        exit 1
+    }
+    rm -f /tmp/nzbhydra2.zip
 
     chmod +x core nzbhydra2wrapperPy3.py
     echo "$latestversion" > /opt/nzbhydra2/.swizzin_version
@@ -173,8 +195,8 @@ if [[ -z $localversion ]] || dpkg --compare-versions ${localversion#v} lt ${late
     fi
     echo_progress_done "Installed"
 else
-    echo_error "Installed version (${localversion}) matches latest version (${latestversion})."
-    exit 1
+    echo_info "Installed version (${localversion}) matches latest version (${latestversion})."
+    exit 0
 fi
 
 if [[ $majorupgrade == True ]]; then
