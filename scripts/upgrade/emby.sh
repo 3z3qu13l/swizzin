@@ -5,6 +5,10 @@
 . /etc/swizzin/sources/functions/utils
 latest=$(github_latest_version MediaBrowser/Emby.Releases)
 current=$(dpkg-query -f='${Version}' --show emby-server)
+if [[ -z $latest ]]; then
+    echo_error "Failed to query GitHub for the latest Emby release"
+    exit 1
+fi
 
 if dpkg --compare-versions ${latest} gt ${current}; then
     echo_info "Upgrading Emby"
@@ -12,8 +16,10 @@ if dpkg --compare-versions ${latest} gt ${current}; then
         echo_error "Emby failed to download"
         exit 1
     }
-    dpkg -i /tmp/emby.dpkg >> ${log} 2>&1 || {
+    dpkg -i --force-confdef --force-confold /tmp/emby.dpkg >> ${log} 2>&1 || {
         echo_error "Emby failed to install"
+        rm /tmp/emby.dpkg
+        exit 1
     }
     rm /tmp/emby.dpkg
 else

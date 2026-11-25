@@ -158,15 +158,33 @@ if [[ -z $latest ]]; then
     exit 1
 fi
 latestversion=$(echo $latest | grep -oP 'v\d+\.\d+\.\d+')
+if [[ -z $latestversion ]]; then
+    echo_error "Could not read the latest NZBHydra version from ${latest}"
+    exit 1
+fi
 if [[ -z $localversion ]] || dpkg --compare-versions ${localversion#v} lt ${latestversion#v}; then
     echo_progress_start "Upgrading NZBHydra to ${latestversion}"
+    # downloaded first, so a failed download leaves the current install in place
+    wget -O /tmp/nzbhydra2.zip ${latest} >> ${log} 2>&1 || {
+        echo_error "Failed to download NZBHydra ${latestversion}"
+        rm -f /tmp/nzbhydra2.zip
+        exit 1
+    }
+    unzip -tq /tmp/nzbhydra2.zip >> ${log} 2>&1 || {
+        echo_error "The downloaded NZBHydra archive is corrupt"
+        rm -f /tmp/nzbhydra2.zip
+        exit 1
+    }
     cd /opt
     rm_if_exists /opt/nzbhydra2
     mkdir nzbhydra2
     cd nzbhydra2
-    wget -O nzbhydra2.zip ${latest} >> ${log} 2>&1
-    unzip nzbhydra2.zip >> ${log} 2>&1
-    rm -f nzbhydra2.zip
+    unzip /tmp/nzbhydra2.zip >> ${log} 2>&1 || {
+        echo_error "Failed to extract NZBHydra, reinstall it with: box remove nzbhydra && box install nzbhydra"
+        rm -f /tmp/nzbhydra2.zip
+        exit 1
+    }
+    rm -f /tmp/nzbhydra2.zip
 
     chmod +x core nzbhydra2wrapperPy3.py
     echo "$latestversion" > /opt/nzbhydra2/.swizzin_version
