@@ -11,7 +11,9 @@ function update_nginx() {
     fi
     # Install missing nginx packages
     [[ $(lsb_release -cs) =~ ^(focal|buster|bullseye)$ ]] && geoip="php-geoip" || geoip=""
-    LIST="php-fpm php-cli php-dev php-xml php-curl php-xmlrpc php-json php-mbstring php-opcache php-xml php-zip ${geoip}"
+    # PHP 8.5 (resolute) builds opcache in, there is no php-opcache package any more
+    [[ $(lsb_release -cs) == resolute ]] && opcache="" || opcache="php-opcache"
+    LIST="php-fpm php-cli php-dev php-xml php-curl php-xmlrpc php-json php-mbstring ${opcache} php-xml php-zip ${geoip}"
     apt_install $LIST
     # Purge php7.0-fpm on all platforms
     cd /etc/php
@@ -39,7 +41,7 @@ function update_nginx() {
                 -e "s/;opcache.memory_consumption=64/opcache.memory_consumption=128/" \
                 -e "s/;opcache.max_accelerated_files=2000/opcache.max_accelerated_files=4000/" \
                 -e "s/;opcache.revalidate_freq=2/opcache.revalidate_freq=240/" /etc/php/$version/fpm/php.ini
-            phpenmod -v $version opcache
+            [[ -f /etc/php/$version/mods-available/opcache.ini ]] && phpenmod -v $version opcache
             sed -i 's/;env\[PATH\]/env[PATH]/g' /etc/php/$version/fpm/pool.d/www.conf
             echo_progress_done
         fi

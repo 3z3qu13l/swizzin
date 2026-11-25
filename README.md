@@ -16,11 +16,12 @@ This is [3z3qu13l/swizzin](https://github.com/3z3qu13l/swizzin), a fork of [swiz
 -   **rTorrent / libtorrent 0.16.28** in the version menu (not on Debian 11 nor Ubuntu 20.04 / 22.04, whose compilers lack C++20). `.rtorrent.rc` is converted to the renamed commands, and back, on `box upgrade rtorrent` ([#3](https://github.com/3z3qu13l/swizzin/pull/3)).
 -   **Pending upstream pull requests**: security fixes, a new fancyindex theme and File Browser fixes ([#1](https://github.com/3z3qu13l/swizzin/pull/1)).
 -   **File Browser passwords**: any swizzin password is accepted, and `box chpasswd` now updates it ([#5](https://github.com/3z3qu13l/swizzin/pull/5), swizzin/swizzin#1243).
-
-Known issue: `box rtx` cannot download most plugins and themes any more. Those it fetches with `svn` fail, since GitHub [shut down svn in 2024](https://github.blog/changelog/2024-01-08-subversion-has-been-sunset/) (swizzin/swizzin#1193).
+-   **Ubuntu 26.04** (resolute) support: nginx no longer asks for `php-opcache`, which PHP 8.5 builds in, and Deluge's libtorrent links the jitterentropy library that Ubuntu's OpenSSL needs.
+-   **Ombi 4.53**: the package's install script fails on every OS, since it still looks for a file the package moved. `box install ombi` works around it. After an `apt upgrade` of an existing Ombi to 4.53, run `box update` to finish it.
+-   **`box rtx` without svn**: plugins and themes install again, since GitHub [shut down svn in 2024](https://github.blog/changelog/2024-01-08-subversion-has-been-sunset/). ruTorrent's own ones are restored from its local copy ([#7](https://github.com/3z3qu13l/swizzin/pull/7), swizzin/swizzin#1193, swizzin/swizzin#1233).
 
 ## What is swizzin?
-Swizzin is a light, modular seedbox solution that can be installed on Debian 11/12/13 or Ubuntu 20.04/22.04/24.04. The QuickBox package repo has been ported over for your installing pleasure, including the panel -- if you so choose!
+Swizzin is a light, modular seedbox solution that can be installed on Debian 11/12/13 or Ubuntu 20.04/22.04/24.04/26.04. The QuickBox package repo has been ported over for your installing pleasure, including the panel -- if you so choose!
 
 Box has been revamped to reduce and consolidate the amount of commands you need to remember to manage your seedbox. More on this below. In addition to that, additional add-on packages can be installed during installation. No need to wait until the installer finishes! Now with unattended installs!
 
@@ -89,7 +90,7 @@ bash <(curl -sL git.io/swizzin) --env /path/to/your/env/file/here.env
 Long-term support branches only:
 
 -   Debian 11/12/13
--   Ubuntu 20.04/22.04/24.04
+-   Ubuntu 20.04/22.04/24.04/26.04
 
 ## Support and Help
 

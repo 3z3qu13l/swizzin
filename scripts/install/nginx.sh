@@ -39,11 +39,18 @@ case $codename in
     focal | buster | bullseye)
         mcrypt=
         geoip="php-geoip"
+        opcache="php-opcache"
+        ;;
+    resolute)
+        mcrypt=
+        geoip=
+        # PHP 8.5 builds opcache in, there is no php-opcache package any more
+        opcache=
         ;;
     *)
         mcrypt=
         geoip=
-
+        opcache="php-opcache"
         ;;
 esac
 
@@ -63,7 +70,7 @@ touch $templog
 openssl dhparam -out dhparam.pem 2048 >> $templog 2>&1 &
 
 # Install packages for nginx in the foreground
-APT="nginx libnginx-mod-http-fancyindex subversion ssl-cert php-fpm libfcgi0ldbl php-cli php-dev php-xml php-curl php-xmlrpc php-json php-mbstring php-opcache php-zip ${geoip} ${mcrypt}"
+APT="nginx libnginx-mod-http-fancyindex subversion ssl-cert php-fpm libfcgi0ldbl php-cli php-dev php-xml php-curl php-xmlrpc php-json php-mbstring ${opcache} php-zip ${geoip} ${mcrypt}"
 apt_install $APT
 
 # Wait for the background task of openssl dhparm generation to finish
@@ -90,7 +97,7 @@ for version in $phpv; do
         -e "s/;opcache.memory_consumption=64/opcache.memory_consumption=128/" \
         -e "s/;opcache.max_accelerated_files=2000/opcache.max_accelerated_files=4000/" \
         -e "s/;opcache.revalidate_freq=2/opcache.revalidate_freq=240/" /etc/php/$version/fpm/php.ini
-    phpenmod -v $version opcache
+    [[ -f /etc/php/$version/mods-available/opcache.ini ]] && phpenmod -v $version opcache
     sed -i 's/;env\[PATH\]/env[PATH]/g' /etc/php/$version/fpm/pool.d/www.conf
 done
 echo_progress_done "PHP config modified"

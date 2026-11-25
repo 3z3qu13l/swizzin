@@ -20,3 +20,13 @@ PIN
         curl -fsSL https://apt.ombi.app/pub.key | gpg --dearmor > /usr/share/keyrings/ombi-archive-keyring.gpg 2>> ${log}
     fi
 }
+
+# Ombi 4.53 moved ClientApp/dist/index.html to dist/browser/, but its postinst still chowns the old path and fails.
+# A link at the old path lets the postinst finish, and still gives the ombi user the index.html it rewrites.
+function ombi_index_link() {
+    local index=/opt/Ombi/ClientApp/dist/index.html
+    if [[ ! -e $index && ! -L $index ]]; then
+        mkdir -p /opt/Ombi/ClientApp/dist
+        ln -s browser/index.html "$index"
+    fi
+}

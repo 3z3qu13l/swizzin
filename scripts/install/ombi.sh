@@ -22,6 +22,7 @@ function _install() {
     fi
     echo_progress_done "Dependencies installed"
 
+    ombi_index_link
     apt_install ombi
 
     mkdir -p /etc/systemd/system/ombi.service.d
