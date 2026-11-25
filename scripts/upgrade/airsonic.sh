@@ -6,7 +6,11 @@ fi
 current_v="$(unzip -p /opt/airsonic/airsonic.war META-INF/MANIFEST.MF | grep -i Implementation-Version | cut -d' ' -f 2)"
 release_v="$(curl -s https://api.github.com/repos/airsonic/airsonic/releases/latest | jq -r .'tag_name')"
 echo_info "Installed = $current_v\nAvailable = $release_v"
-if ! ask "Upgrade Airsonic package?"; then
+if [[ -n $SWIZZIN_UPGRADE_ALL && "v${current_v#v}" == "v${release_v#v}" ]]; then
+    echo_info "Airsonic is up to date"
+    exit 0
+fi
+if [[ -z $SWIZZIN_UPGRADE_ALL ]] && ! ask "Upgrade Airsonic package?"; then
     exit 0
 fi
 

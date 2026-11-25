@@ -6,6 +6,10 @@ active=$(systemctl is-active nzbhydra)
 username=$(_get_master_username)
 
 if [[ -d /opt/.venv/nzbhydra ]]; then
+    if [[ -n $SWIZZIN_UPGRADE_ALL ]]; then
+        echo_warn "NZBHydra v1 needs a migration, upgrade it on its own with: box upgrade nzbhydra"
+        exit 1
+    fi
     echo_query "NZBHydra v1 detected. Do you want to migrate data?\nIf you select no, a migration will not be attempted but your old data will be left." ""
     select yn in "Yes" "No"; do
         case $yn in
@@ -173,8 +177,8 @@ if [[ -z $localversion ]] || dpkg --compare-versions ${localversion#v} lt ${late
     fi
     echo_progress_done "Installed"
 else
-    echo_error "Installed version (${localversion}) matches latest version (${latestversion})."
-    exit 1
+    echo_info "Installed version (${localversion}) matches latest version (${latestversion})."
+    exit 0
 fi
 
 if [[ $majorupgrade == True ]]; then

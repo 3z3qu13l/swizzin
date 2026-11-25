@@ -201,14 +201,50 @@ We URGE you to migrate to a supported release if/while you still have the chance
 function _upgrade() {
     arg=("$@")
     packages=("${arg[@]:1}")
-    repo=($(find /usr/local/bin/swizzin/upgrade -type f -printf "%f\n" | cut -d "." -f 1))
+    if [[ " ${packages[*]} " == *" --all "* ]]; then
+        if [[ ${#packages[@]} -ne 1 ]]; then
+            echo_error "--all cannot be combined with package names or other options"
+            exit 1
+        fi
+        _upgrade_all
+        return
+    fi
     for app in "${packages[@]}"; do
-        if [[ "${repo[*]}" =~ $app ]]; then
+        if [[ $app =~ ^[A-Za-z0-9_-]+$ && -f /usr/local/bin/swizzin/upgrade/"$app".sh ]]; then
             bash /usr/local/bin/swizzin/upgrade/"$app".sh || exit 1
         else
             echo_warn "Upgrade script for $app does not exist"
         fi
     done
+}
+
+function _upgrade_all() {
+    # These ask which version to build, reset the nginx config, migrate Sonarr v2, or set up plexupdate interactively.
+    # curl has no lock file, so it is never picked up here.
+    local skipped=(deluge nginx plex qbittorrent rtorrent sonarr)
+    local apps=() failed=() app script
+    for script in /usr/local/bin/swizzin/upgrade/*.sh; do
+        app=$(basename "$script" .sh)
+        [[ -f /install/.$app.lock ]] || continue
+        if [[ " ${skipped[*]} " == *" $app "* ]]; then
+            echo_info "Skipping $app, upgrade it on its own with: box upgrade $app"
+            continue
+        fi
+        apps+=("$app")
+    done
+    if [[ ${#apps[@]} -eq 0 ]]; then
+        echo_info "Nothing to upgrade"
+        return
+    fi
+    for app in "${apps[@]}"; do
+        echo_info "Upgrading $app"
+        SWIZZIN_UPGRADE_ALL=true bash /usr/local/bin/swizzin/upgrade/"$app".sh || failed+=("$app")
+    done
+    if [[ ${#failed[@]} -gt 0 ]]; then
+        echo_error "Upgrade failed for: ${failed[*]}"
+        exit 1
+    fi
+    echo_success "Ran upgrades for: ${apps[*]}"
 }
 
 #shellcheck disable=SC2059
@@ -234,6 +270,7 @@ function _help() {
     printf "${sgformat}" "upgrade"
     echo -e "Runs the associated upgrade script." | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
     echo -e "               Example: box upgrade plex curl" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo -e "               box upgrade --all upgrades every installed package except rtorrent, qbittorrent, deluge, nginx, plex and sonarr" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
     echo
     printf "${sgformat}" "adduser"
     echo -e "The adduser function requires a single user to be specified, this user will be created" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
