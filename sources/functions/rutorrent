@@ -51,6 +51,16 @@ function rutorrent_install() {
         }
     fi
 
+    if [[ ! -d /srv/rutorrent/plugins/theme/themes/club-QuickBox ]]; then
+        git clone --depth 1 -b latest https://github.com/QuickBox/club-QuickBox.git /srv/rutorrent/plugins/theme/themes/club-QuickBox >> ${log} 2>&1 || {
+            echo_error "git of club-QuickBox theme seems to have failed"
+        }
+    fi
+    # Only replaces an unset default, a theme chosen in the conf is kept
+    if [[ -d /srv/rutorrent/plugins/theme/themes/club-QuickBox ]]; then
+        sed -i 's/^\$defaultTheme = "";/$defaultTheme = "club-QuickBox";/' /srv/rutorrent/plugins/theme/conf.php
+    fi
+
     echo_progress_done "Plugins downloaded"
 
     if [[ -f /install/.quota.lock ]] && [[ -z $(grep quota /srv/rutorrent/plugins/diskspace/action.php) ]]; then
