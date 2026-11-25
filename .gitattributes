@@ -9,3 +9,7 @@ sources/functions/* diff=bash
 .gitattributes export-ignore
 .gitignore export-ignore
 .gitkeep export-ignore
+
+# Third-party copies are kept byte for byte
+sources/vendor/** -text -diff
+sources/vendor/README.md text diff
