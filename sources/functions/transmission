@@ -65,3 +65,46 @@ function _install_transmission() {
     systemctl disable -q --now transmission-daemon >> "$log" 2>&1
     echo_progress_done
 }
+
+# QuickBox's web interface, served through TRANSMISSION_WEB_HOME so the packaged interface stays untouched.
+# Any failure keeps the interface that is already served.
+function transmission_web_control_install() {
+    local dir=/opt/transmission-web-control version tmp stock status=0
+    . /etc/swizzin/sources/functions/utils
+    version=$(github_latest_version QuickBox/transmission-web-control)
+    if [[ -z $version ]]; then
+        echo_warn "Could not find the latest transmission-web-control release, keeping the current web interface"
+        return 1
+    fi
+    echo_progress_start "Installing the transmission-web-control interface ${version}"
+    tmp=$(mktemp -d)
+    local url=https://github.com/QuickBox/transmission-web-control/releases/download/${version}
+    if wget -q -P "$tmp" "${url}/transmission-web-control-${version}.tar.gz" "${url}/SHA256SUMS" >> "$log" 2>&1 &&
+        (cd "$tmp" && sha256sum -c SHA256SUMS --ignore-missing >> "$log" 2>&1) &&
+        rm -rf "${dir}.new" && mkdir -p "${dir}.new" &&
+        tar --no-same-owner --no-same-permissions -xzf "$tmp/transmission-web-control-${version}.tar.gz" --strip-components=1 -C "${dir}.new" >> "$log" 2>&1 &&
+        [[ -f ${dir}.new/index.html ]]; then
+        # the tab icon comes from the packaged interface (public_html in 4.x, web in 3.x)
+        for stock in /usr/share/transmission/public_html /usr/share/transmission/web; do
+            [[ -d $stock/images ]] && cp -a "$stock/images" "${dir}.new/" && break
+        done
+        # root-owned, so no local user can change the JavaScript served on the swizzin domain
+        chown -R root:root "${dir}.new"
+        rm -rf "${dir}.old"
+        [[ -d $dir ]] && mv "$dir" "${dir}.old"
+        mv "${dir}.new" "$dir" && rm -rf "${dir}.old"
+        mkdir -p /etc/systemd/system/transmission@.service.d
+        cat > /etc/systemd/system/transmission@.service.d/web-control.conf << EOF
+[Service]
+Environment=TRANSMISSION_WEB_HOME=${dir}
+EOF
+        systemctl daemon-reload
+        echo_progress_done "Interface ${version} installed"
+    else
+        rm -rf "${dir}.new"
+        echo_warn "transmission-web-control could not be installed, keeping the current web interface"
+        status=1
+    fi
+    rm -rf "$tmp"
+    return $status
+}

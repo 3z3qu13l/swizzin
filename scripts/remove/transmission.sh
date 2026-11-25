@@ -12,6 +12,8 @@ add-apt-repository --remove ppa:transmissionbt/ppa -y >> $log 2>&1
 apt_remove --purge transmission-common transmission-cli transmission-daemon
 echo_log_only "Removing service file and nginx configs"
 rm /etc/systemd/system/transmission@.service
+rm -rf /etc/systemd/system/transmission@.service.d/web-control.conf /opt/transmission-web-control
+rmdir /etc/systemd/system/transmission@.service.d 2> /dev/null
 rm /etc/nginx/apps/transmission.conf >> "$log" 2>&1
 rm /etc/nginx/conf.d/*.transmission.conf >> "$log" 2>&1
 systemctl reload nginx >> "$log" 2>&1

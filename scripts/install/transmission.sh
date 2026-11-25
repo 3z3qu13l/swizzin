@@ -231,6 +231,7 @@ fi
 . /etc/swizzin/sources/functions/transmission
 _install_transmission
 _mkservice_transmission
+transmission_web_control_install
 for user in ${users[@]}; do
     echo_progress_start "Setting up transmission for $user"
     _setenv_transmission
