@@ -17,6 +17,7 @@ if ! grep -q apt.ombi.app /etc/apt/sources.list.d/ombi.list; then
     echo_progress_done "Backed up to /root/swizzin/backups/ombivx"
 
     apt_update
+    ombi_index_link
     apt_install ombi
     if [[ -f /install/.nginx.lock ]]; then
         bash /etc/swizzin/scripts/nginx/ombi.sh
