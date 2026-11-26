@@ -104,8 +104,8 @@ _mkdir_transmission() {
 
 _mkconf_transmission() {
     echo_progress_start "Creating config for ${bold}$user"
-    # written as the user: Transmission can read it under any umask, and a symlink placed there only reaches the user's own files
-    rm -f /home/${user}/.config/transmission-daemon/settings.json
+    # removed and written as the user: Transmission can read it under any umask, and a symlink placed there only reaches the user's own files
+    runuser -u ${user} -- rm -f /home/${user}/.config/transmission-daemon/settings.json
     runuser -u ${user} -- tee /home/${user}/.config/transmission-daemon/settings.json > /dev/null << EOF
 {
     "alt-speed-down": 50,
