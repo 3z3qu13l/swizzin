@@ -23,4 +23,8 @@ else
     apt_remove ombi
 fi
 
+rm -f /etc/systemd/system/ombi.service.d/override.conf
+rmdir --ignore-fail-on-non-empty /etc/systemd/system/ombi.service.d 2> /dev/null
+systemctl daemon-reload
+
 rm /install/.ombi.lock

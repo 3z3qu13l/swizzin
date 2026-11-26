@@ -48,6 +48,11 @@ function _get_master_username() {
 }
 export -f _get_master_username
 
+# True when no terminal can be opened (script, cron, web dashboard): prompts there would wait forever
+function _no_terminal() {
+    ! { : < /dev/tty; } 2> /dev/null
+}
+
 # Will recurse if $pass isn't set or isn't valid
 function password_check() {
     ui="$1"
@@ -100,6 +105,11 @@ function password_check() {
     fi
     # If password was empty then it needs to be generated
     if [[ -z "${pass}" ]]; then
+        # generating one needs a terminal to show it and confirm it was noted
+        if _no_terminal; then
+            echo_error "No password given: pass it as an argument, box adduser|chpasswd <user> <password>"
+            exit 1
+        fi
         echo_progress_start "Generating password"
         pass="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)"
         whiptail --title "Generated password" --msgbox "The generated password for $user is:\n$pass \n\nNote this down as this will not be shown again after it is hidden" --ok-button="Hide" 10 70
@@ -112,7 +122,7 @@ function password_check() {
     #Perform tests. If failure is detected, recurse by unsetting $pass, and running `password_check $ui`
     ## Passwords are stored as user:password, and Deluge keeps them in user:password:level lines
     if [[ $pass == *:* ]]; then
-        if [[ $UNATTEND == "true" ]]; then
+        if [[ $UNATTEND == "true" ]] || _no_terminal; then
             echo_error "Passwords cannot contain a colon (:)."
             exit 1
         fi
@@ -132,6 +142,10 @@ function password_check() {
         result=$(cracklib-check <<< "$pass")
         if ! grep -q OK <<< "$result"; then
             crackreason=$(echo "$result" | cut -d':' -f2)
+            if _no_terminal; then
+                echo_error "Password did not pass cracklib check. Reason: \"${crackreason/ /}\""
+                exit 1
+            fi
             if [[ $ui = "whiptail" ]]; then
                 whiptail --title "Error" --msgbox "Password did not pass cracklib check.\nReason: \"${crackreason/ /}\"" --ok-button="Try again" 10 50
             else
@@ -191,6 +205,10 @@ function username_check() {
     fi
     ## Recurse if error found
     if [[ $badUsername = "true" ]]; then
+        if _no_terminal; then
+            echo_error "$error_message"
+            exit 1
+        fi
         if [[ $ui = "whiptail" ]]; then
             whiptail --title "Error" --msgbox "$error_message" --ok-button="Try again" 12 50
         else

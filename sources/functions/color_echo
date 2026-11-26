@@ -186,7 +186,9 @@ export -f colorprint
 function do_the_wrap() {
     if [[ $fold = true ]]; then
         # width to use for folding and wrapping (excludes tab for indentation, subtract 8 char to account for that)
-        width=$(tput cols)
+        # no TERM (cron, systemd, ssh without -t): tput fails and fold would drop the whole message
+        width=$(tput cols 2> /dev/null)
+        [[ $width =~ ^[0-9]+$ ]] || width=80
         if [[ $full_width == "false" ]]; then
             if [[ $width -gt $width_cap ]]; then
                 width=$width_cap
