@@ -787,7 +787,7 @@ function qbittorrent_chpasswd() {
         QBTWP="WebUI\\\Password_PBKDF2=\"@ByteArray($hashed)\""
     fi
     systemctl stop qbittorrent@${user}
-    sed -i "s|WebUI\\\Password.*|$QBTWP|g" /home/${user}/.config/qBittorrent/qBittorrent.conf
+    sed -i -e "s|WebUI\\\Password.*|$QBTWP|g" -e "/^\[WebUI\]/,/^\[/ s|^Password_PBKDF2=.*|${QBTWP#WebUI\\\\}|" /home/${user}/.config/qBittorrent/qBittorrent.conf
     if [[ $active == "active" ]]; then
         systemctl start qbittorrent@${user}
     fi
