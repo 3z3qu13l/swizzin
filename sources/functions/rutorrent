@@ -771,7 +771,7 @@ function rutorrent_perms_needed() {
     for d in "$r"/share/users/*/; do
         d=${d%/}
         # a profile left by a removed account is not changed again at every update
-        [[ -d $d && ! -L $d ]] && id -u "${d##*/}" > /dev/null 2>&1 || continue
+        if [[ ! -d $d || -L $d ]] || ! id -u "${d##*/}" > /dev/null 2>&1; then continue; fi
         getfacl -cp "$d" 2> /dev/null | grep -q '^user:rutorrent:rwx' || return 0
     done
     for d in "$r"/conf/users/*/config.php; do
