@@ -731,13 +731,11 @@ function qbittorrent_user_config() {
 
     usermod -a -G ${user} www-data 2>> $log
     port=$(port 10000 11000)
-    mkdir -p /home/${user}/.config/qBittorrent/
-    mkdir -p /home/${user}/torrents/qbittorrent
-    chown ${user}: /home/${user}/torrents
-    chown ${user}: /home/${user}/torrents/qbittorrent
-    chown $user: /home/${user}/.config
-    chown $user: /home/${user}/.config/qBittorrent
-    cat > /home/${user}/.config/qBittorrent/qBittorrent.conf << QBTCONF
+    # folders and config are made by the user, never by root: a symlink the user put in their home
+    # only reaches their own files, where a root mkdir, chown or write would follow it anywhere
+    runuser -u "${user}" -- mkdir -p /home/${user}/.config/qBittorrent /home/${user}/torrents/qbittorrent
+    runuser -u "${user}" -- rm -f /home/${user}/.config/qBittorrent/qBittorrent.conf
+    runuser -u "${user}" -- tee /home/${user}/.config/qBittorrent/qBittorrent.conf > /dev/null << QBTCONF
 [BitTorrent]
 Session\DisableAutoTMMByDefault=false
 
@@ -765,14 +763,13 @@ WebUI\SessionTimeout=3600
 WebUI\UseUPnP=true
 WebUI\Username=${user}
 QBTCONF
-    # written by root: under a restrictive umask qBittorrent could not read it and would save its defaults over it
-    chown ${user}: /home/${user}/.config/qBittorrent/qBittorrent.conf
 }
 
-# Prints a WebUI setting of a user: qBittorrent 5.3 moves WebUI\Key in [Preferences] to Key in [WebUI]
+# Prints a WebUI setting of a user: qBittorrent 5.3 moves WebUI\Key in [Preferences] to Key in [WebUI].
+# Read as the user: the file is theirs and may be a symlink to anything
 function qbittorrent_webui_setting() {
     # [WebUI] wins: the one 5.3 reads if a stale [Preferences] key is left behind
-    awk -F= -v k="$2" '/^\[/ {s = $0} s == "[WebUI]" && $1 == k {print $2; f = 1; exit} s == "[Preferences]" && $1 == "WebUI\\" k && !o {o = 1; v = $2} END {if (!f && o) print v}' "/home/$1/.config/qBittorrent/qBittorrent.conf" 2> /dev/null
+    runuser -u "$1" -- awk -F= -v k="$2" '/^\[/ {s = $0} s == "[WebUI]" && $1 == k {print $2; f = 1; exit} s == "[Preferences]" && $1 == "WebUI\\" k && !o {o = 1; v = $2} END {if (!f && o) print v}' "/home/$1/.config/qBittorrent/qBittorrent.conf" 2> /dev/null
 }
 
 function qbittorrent_chpasswd() {
@@ -789,7 +786,7 @@ function qbittorrent_chpasswd() {
         QBTWP="WebUI\\\Password_PBKDF2=\"@ByteArray($hashed)\""
     fi
     systemctl stop qbittorrent@${user}
-    sed -i -e "s|WebUI\\\Password.*|$QBTWP|g" -e "/^\[WebUI\]/,/^\[/ s|^Password_PBKDF2=.*|${QBTWP#WebUI\\\\}|" /home/${user}/.config/qBittorrent/qBittorrent.conf
+    runuser -u "${user}" -- sed -i -e "s|WebUI\\\Password.*|$QBTWP|g" -e "/^\[WebUI\]/,/^\[/ s|^Password_PBKDF2=.*|${QBTWP#WebUI\\\\}|" /home/${user}/.config/qBittorrent/qBittorrent.conf
     if [[ $active == "active" ]]; then
         systemctl start qbittorrent@${user}
     fi

@@ -76,7 +76,7 @@ QBTUC
         if [[ $active == "active" ]]; then
             systemctl stop qbittorrent@${user} >> ${log} 2>&1
         fi
-        sed -i -e 's|WebUI\\Address=.*|WebUI\\Address=127.0.0.1|g' -e '/^\[WebUI\]/,/^\[/ s|^Address=.*|Address=127.0.0.1|' /home/${user}/.config/qBittorrent/qBittorrent.conf
+        runuser -u "${user}" -- sed -i -e 's|WebUI\\Address=.*|WebUI\\Address=127.0.0.1|g' -e '/^\[WebUI\]/,/^\[/ s|^Address=.*|Address=127.0.0.1|' /home/${user}/.config/qBittorrent/qBittorrent.conf
         if [[ $active == "active" ]]; then
             systemctl start qbittorrent@${user} >> ${log} 2>&1
         fi

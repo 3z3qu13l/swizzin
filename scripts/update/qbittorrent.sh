@@ -29,18 +29,8 @@ if [[ -f /install/.qbittorrent.lock ]]; then
         conf="/home/${u}/.config/qBittorrent/qBittorrent.conf"
         [[ -f $conf ]] || continue
         active=$(systemctl is-active qbittorrent@"$u")
-        # Still unreadable and not yet overwritten: qBittorrent runs on its defaults and would save them when stopped
-        if ! runuser -u "$u" -- test -r "$conf"; then
-            echo_progress_start "Giving $u its qBittorrent config"
-            cp -p "$conf" "${conf}.swizzin"
-            systemctl stop qbittorrent@"$u"
-            mv -f "${conf}.swizzin" "$conf"
-            chown "$u": "$conf"
-            if [[ $active == "active" ]]; then
-                systemctl start qbittorrent@"$u"
-            fi
-            echo_progress_done
-        fi
+        # read as the user, never as root: the user can symlink this file or its folder anywhere.
+        # A config the user cannot read is one qBittorrent cannot read either: it is written again.
         [[ -z $(qbittorrent_webui_setting "$u" Username) && -z $(qbittorrent_webui_setting "$u" Password_PBKDF2) && -z $(qbittorrent_webui_setting "$u" Password_ha1) ]] || continue
         echo_progress_start "Restoring the qBittorrent config of $u"
         systemctl stop qbittorrent@"$u"
@@ -48,7 +38,7 @@ if [[ -f /install/.qbittorrent.lock ]]; then
         qbittorrent_user_config "$u"
         # keep the port nginx already proxies to, the nginx script would restart every user's qBittorrent
         if [[ -n $nginxport ]]; then
-            sed -i -e "s|^WebUI\\\\Port=.*|WebUI\\\\Port=${nginxport}|" -e 's|^WebUI\\Address=.*|WebUI\\Address=127.0.0.1|' "$conf"
+            runuser -u "$u" -- sed -i -e "s|^WebUI\\\\Port=.*|WebUI\\\\Port=${nginxport}|" -e 's|^WebUI\\Address=.*|WebUI\\Address=127.0.0.1|' "$conf"
         elif [[ -f /install/.nginx.lock ]]; then
             bash /etc/swizzin/scripts/nginx/qbittorrent.sh
             systemctl reload nginx
