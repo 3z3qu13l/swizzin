@@ -99,10 +99,11 @@ nice = -n10
 pause_on_post_processing = 1
 enable_all_par = 1
 direct_unpack_threads = 1
-password = "${password}"
 username = "${user}"
 url_base = "sabnzbd"
 SAB_INI
+# configobj picks the quoting that keeps any password intact
+SAB_PASS="${password}" /opt/.venv/sabnzbd/bin/python -c 'import os, sys; from configobj import ConfigObj; c = ConfigObj(sys.argv[1], encoding="utf-8"); c["misc"]["password"] = os.environ["SAB_PASS"]; c.write()' /home/${user}/.config/sabnzbd/sabnzbd.ini
 chown -R ${user}: /opt/sabnzbd
 chown ${user}: /home/${user}/.config
 chown -R ${user}: /home/${user}/.config/sabnzbd
