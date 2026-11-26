@@ -306,6 +306,12 @@ function _rutorrent_report_changes() {
     if [[ -n $changed ]]; then
         echo_warn "These ruTorrent files differ from its release $1, check them or reinstall ruTorrent: ${changed//$'\n'/, }"
     fi
+    # added code: PHP files the release does not have, but in the plugins and themes swizzin and rtx add
+    changed=$(rutorrent_git ls-files --others -- '*.php' ':!share' ':!conf/users' ':!plugins/filemanager*' ':!plugins/fileshare' \
+        ':!plugins/ratiocolor' ':!plugins/geoip2' ':!plugins/mobile' ':!plugins/pausewebui' ':!plugins/theme/themes' 2>> "$log")
+    if [[ -n $changed ]]; then
+        echo_warn "These PHP files are not part of ruTorrent $1, check them or reinstall ruTorrent: ${changed//$'\n'/, }"
+    fi
 }
 
 # git as root on ruTorrent's own clone only: never a repository found another way, such as a bare one
@@ -325,6 +331,7 @@ function _rutorrent_profiles_nosymfollow() {
     cat > /etc/systemd/system/$unit << EOF
 [Unit]
 Description=ruTorrent profiles, links in them are not followed
+Before=nginx.service
 
 [Mount]
 What=$d

@@ -59,11 +59,18 @@ if [ -f /install/.rutorrent.lock ]; then
         if ! grep -qF 'rutorrent/(conf|share)/' /etc/nginx/apps/rutorrent.conf; then
             echo_progress_start "Closing ruTorrent's profiles to the web"
             deny=$(mktemp)
+            bak=$(mktemp)
+            cp -p /etc/nginx/apps/rutorrent.conf "$bak"
             rutorrent_nginx_deny > "$deny"
-            sed -i "/^location \/rutorrent {/r $deny" /etc/nginx/apps/rutorrent.conf
-            rm -f "$deny"
-            grep -qF 'rutorrent/(conf|share)/' /etc/nginx/apps/rutorrent.conf || echo_warn "Could not close /rutorrent/share and /rutorrent/conf in /etc/nginx/apps/rutorrent.conf"
-            reloadnginx=1
+            sed -i -E "0,/^\s*location\s+(\^~\s+)?\/rutorrent\/?\s*\{/{//r $deny
+}" /etc/nginx/apps/rutorrent.conf
+            if grep -qF 'rutorrent/(conf|share)/' /etc/nginx/apps/rutorrent.conf && nginx -t >> "$log" 2>&1; then
+                reloadnginx=1
+            else
+                cat "$bak" > /etc/nginx/apps/rutorrent.conf
+                echo_warn "Could not close /rutorrent/share and /rutorrent/conf in /etc/nginx/apps/rutorrent.conf, add the rule yourself: $(rutorrent_nginx_deny | tr -s ' \n' ' ')"
+            fi
+            rm -f "$deny" "$bak"
             echo_progress_done
         fi
     fi
