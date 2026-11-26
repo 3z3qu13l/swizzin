@@ -130,8 +130,8 @@ apt_update #forces apt refresh
 apt_install jellyfin
 
 #
-# Add the jellyfin user to the master user's group.
-usermod -a -G "${username}" jellyfin
+# Jellyfin reads its certificate, and nothing else of the home
+out=$(_media_acl jellyfin "/home/${username}/.ssl" rX 2>&1) || echo_warn "Jellyfin cannot read its certificate in /home/${username}/.ssl: $out"
 #
 
 chown jellyfin:jellyfin /etc/jellyfin/dlna.xml
@@ -154,5 +154,6 @@ systemctl -q restart "jellyfin.service"
 touch /install/.jellyfin.lock
 #
 echo_success "Jellyfin installed"
+echo_info "Jellyfin reads none of your folders yet. For each library folder, run: box media-access jellyfin <folder>"
 #
 exit

@@ -75,8 +75,12 @@ function _install_calibreweb() {
     useradd $clbWebUser --system -d "$calibrewebdir" >> $log 2>&1
     chown -R $clbWebUser:$clbWebUser $calibrewebdir
     chown -R ${clbWebUser}: /opt/.venv/calibreweb
-    #This bit right here will ensure that the system user created will have access to the master user's folders where he might have the CalibreDB
-    usermod -a -G "${CALIBRE_LIBRARY_USER}" $clbWebUser >> $log 2>&1
+    # Calibre-web edits the library, and gets nothing else of the home
+    if [[ -d $CALIBRE_LIBRARY_PATH ]]; then
+        out=$(_media_acl $clbWebUser "$CALIBRE_LIBRARY_PATH" rwX 2>&1) || echo_warn "calibreweb cannot reach $CALIBRE_LIBRARY_PATH: $out"
+    else
+        echo_info "Once your Calibre library exists, run: box media-access calibreweb <library folder>"
+    fi
     echo_progress_done
 
     echo_progress_start "Installing python dependencies"

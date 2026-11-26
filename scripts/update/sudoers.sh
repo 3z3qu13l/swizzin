@@ -42,6 +42,25 @@ for f in /etc/sudoers.d/*; do
     fi
 done
 
+# Each user may run box fix-downloads for themselves (files they moved into a download folder). Added to
+# the rules swizzin wrote, through a checked draft; a rule changed by hand is left as it is
+for f in /etc/sudoers.d/*; do
+    u=${f##*/}
+    [[ $u == *.* ]] && continue
+    grep -qF "/usr/local/bin/swizzin/box chpasswd ${u}" "$f" || continue
+    grep -qF "/usr/local/bin/swizzin/box fix-downloads ${u}" "$f" && continue
+    tmp=$(mktemp /etc/sudoers.d/.swizzin.XXXXXX) || continue
+    sed "s|/usr/local/bin/swizzin/box chpasswd ${u}\$|&, /usr/local/bin/swizzin/box fix-downloads ${u}|" "$f" > "$tmp"
+    if grep -qF "/usr/local/bin/swizzin/box fix-downloads ${u}" "$tmp" && visudo -cqf "$tmp" > /dev/null 2>&1; then
+        chmod 440 "$tmp"
+        mv -f "$tmp" "$f"
+        echo_log_only "$u may now run box fix-downloads"
+    else
+        rm -f "$tmp"
+        echo_log_only "The sudo rule of $u was changed by hand, box fix-downloads was not added to it"
+    fi
+done
+
 if [[ -f /etc/sudoers.d/panel ]]; then
     if grep -q -E "(sed|grep|box|drop_caches|set_interface|pkill|killall|reload|vnstat|ifstat|PACKAGECMNDS)" /etc/sudoers.d/panel; then
         echo_info "Fixing sudo permissions for panel"

@@ -268,6 +268,8 @@ function _help() {
     echo -e "Usage:\t$(basename $0)"
     echo -e "\t$(basename $0) [ install | remove | upgrade ] ${bold}pkg1${normal} [ pkg2 ... ]"
     echo -e "\t$(basename $0) [ adduser | deluser | chpasswd ] ${bold}username${normal} [ password ]"
+    echo -e "\t$(basename "$0") [ fix-downloads ] ${bold}username${normal}"
+    echo -e "\t$(basename "$0") [ media-access ] ${bold}app${normal} ${bold}folder${normal}"
     echo -e "\t$(basename $0) [ list | update ]"
     echo
     echo -e "Note: Only install and remove functions accept package arguments. List and update must be run without modifiers\n" | fmt --goal=66 --tagged-paragraph
@@ -296,6 +298,14 @@ function _help() {
     printf "${sgformat}" "chpasswd"
     echo -e "The chpasswd function requires a single user to be specified, their password will be changed" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
     echo -e "               Example: box chpasswd forgetfulfriend" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo
+    printf "${sgformat}" "fix-downloads"
+    echo -e "Makes files moved into a user's download folders openable from the web again (a moved file keeps its own permissions). Users run it themselves with sudo and their own name" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo -e "               Example: sudo box fix-downloads friend" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo
+    printf "${sgformat}" "media-access"
+    echo -e "Lets a media server (plex, emby, jellyfin, airsonic, calibreweb) read a library folder and what is added to it later, and nothing else in the home. calibreweb may also write there. Run it again after moving files in from elsewhere" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo -e "               Example: box media-access plex /home/user/media" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
     echo
     printf "${sgformat}" "update"
     echo -e "The update command will update your local swizzin repository to the latest version and run important update scripts" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
@@ -622,6 +632,52 @@ function _chpasswd() {
     unset pass
 }
 
+# A file moved (mv) into a download folder keeps its own permissions, often unreadable by nginx: the
+# folders nginx lists for the user are walked again, as the user. Users run it through their sudo rule
+function _fix_downloads() {
+    local u=$2 f root rel out ok=true
+    if ! _get_user_list | grep -qxF -- "$u"; then
+        echo_error "$u is not a swizzin user"
+        exit 1
+    fi
+    for f in rindex dindex qbtindex tmsindex; do
+        root=$(_served_root /etc/nginx/apps/"${f}".conf) || continue
+        [[ -n $root ]] || continue
+        rel=${root#/home/\$remote_user/}
+        if out=$(_www_acl_served "$u" "$rel" 2>&1); then
+            if [[ -n $out ]]; then echo_info "/home/$u/$rel: ${out//$'\n'/; }"; fi
+        else
+            echo_warn "/home/$u/$rel: ${out##*$'\n'}"
+            ok=false
+        fi
+    done
+    [[ $ok == true ]] || exit 1
+    echo_success "The downloads of $u can be opened from the web again"
+}
+
+# Media servers used to be in the master's group, which also reaches everything group-readable in the
+# home. They now get named ACLs on the folders the admin chooses
+function _media_access() {
+    local a=$2 dir=$3 perm=rX uid uid_min out
+    uid=$(id -u -- "$a" 2> /dev/null)
+    uid_min=$(awk '$1 == "UID_MIN" {print $2}' /etc/login.defs)
+    if [[ -z $uid ]] || ((uid == 0 || uid >= ${uid_min:-1000})); then
+        echo_error "$a is not a system account, such as a media server's (plex, emby, jellyfin, airsonic, calibreweb)"
+        exit 1
+    fi
+    # Calibre-web edits the library and adds books to it
+    [[ $a == calibreweb ]] && perm=rwX
+    if out=$(_media_acl "$a" "$dir" "$perm" 2>&1); then
+        if [[ -n $out ]]; then echo_info "$out"; fi
+        dir=$(readlink -f -- "$dir")
+        echo_log_only "media-access: $a got $perm on $dir, owned by $(stat -c %U "$dir")"
+        echo_success "$a can now read $dir ($(stat -c %U "$dir")'s) and what is added to it"
+    else
+        echo_error "$out"
+        exit 1
+    fi
+}
+
 function _nukeovh() {
     bash /etc/swizzin/scripts/nukeovh
 }
@@ -752,6 +808,20 @@ case "$1" in
             exit 1
         fi
         _chpasswd "$@"
+        ;;
+    "fix-downloads")
+        if [[ -z $2 || -n $3 ]]; then
+            echo_error "Correct usage: box fix-downloads <username>"
+            exit 1
+        fi
+        _fix_downloads "$@"
+        ;;
+    "media-access")
+        if [[ -z $3 || -n $4 ]]; then
+            echo_error "Correct usage: box media-access <app> <folder>"
+            exit 1
+        fi
+        _media_access "$@"
         ;;
     "rmgrsec")
         _nukeovh

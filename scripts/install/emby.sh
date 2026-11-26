@@ -65,8 +65,8 @@ else
 fi
 
 echo_progress_start "Starting Emby"
-usermod -a -G ${username} emby
 systemctl restart emby-server > /dev/null 2>&1
 echo_progress_done
 touch /install/.emby.lock
 echo_success "Emby installed"
+echo_info "Emby reads none of your folders yet. For each library folder, run: box media-access emby <folder>"
