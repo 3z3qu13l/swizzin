@@ -2,6 +2,8 @@
 
 #shellcheck source=sources/functions/tests
 . /etc/swizzin/sources/functions/tests
+#shellcheck source=sources/functions/qbittorrent
+. /etc/swizzin/sources/functions/qbittorrent
 
 readarray -t users < <(_get_user_list)
 for user in "${users[@]}"; do
@@ -18,8 +20,7 @@ for user in "${users[@]}"; do
     }
 
     extra_params="--user $user:$(_get_user_password "$user")"
-    confpath="/home/${user}/.config/qBittorrent/qBittorrent.conf"
-    port=$(grep 'WebUI\\Port' "$confpath" | cut -d= -f2)
+    port=$(qbittorrent_webui_setting "$user" Port)
     check_port_curl "$port" "$extra_params" || BAD=true
 done
 

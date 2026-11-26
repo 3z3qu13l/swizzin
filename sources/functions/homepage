@@ -7,6 +7,8 @@ homepage_dir="/opt/homepage"
 . /etc/swizzin/sources/functions/npm
 #shellcheck source=sources/functions/utils
 . /etc/swizzin/sources/functions/utils
+#shellcheck source=sources/functions/qbittorrent
+. /etc/swizzin/sources/functions/qbittorrent
 
 # Downloads and builds the latest Homepage release in $homepage_dir
 function homepage_build() {
@@ -127,7 +129,7 @@ function _homepage_local_url() {
             [[ -n $port ]] && echo "http://127.0.0.1:${port}"
             ;;
         qbittorrent)
-            port=$(sed -n 's/^WebUI\\Port=//p' "/home/${user}/.config/qBittorrent/qBittorrent.conf" 2> /dev/null)
+            port=$(qbittorrent_webui_setting "$user" Port)
             [[ -n $port ]] && echo "http://127.0.0.1:${port}"
             ;;
         deluge)
