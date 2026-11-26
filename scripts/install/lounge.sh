@@ -543,9 +543,9 @@ function _adduser() {
     for u in "${users[@]}"; do
         echo_progress_start "Adding $u to lounge"
         if [[ $u = "$master" ]]; then
-            password=$(cut -d: -f2 < /root/.master.info)
+            password=$(cut -d: -f2- < /root/.master.info)
         else
-            password=$(cut -d: -f2 < /root/$u.info)
+            password=$(cut -d: -f2- < /root/$u.info)
         fi
         crypt=$(node /usr/local/share/.config/yarn/global/node_modules/bcryptjs/bin/bcrypt "${password}")
         cat > /opt/lounge/.thelounge/users/$u.json << EOU

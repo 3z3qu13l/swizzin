@@ -12,7 +12,7 @@
 #   under the GPL along with build & install instructions.
 #
 users=($(cut -d: -f1 < /etc/htpasswd))
-for u in ${users}; do
+for u in "${users[@]}"; do
     systemctl disable --now -q deluged@$u
     systemctl disable --now -q deluge-web@$u
     rm -rf /home/${u}/.config/deluge
@@ -21,6 +21,7 @@ done
 
 rm /etc/systemd/system/deluged@.service
 rm /etc/systemd/system/deluge-web@.service
+systemctl daemon-reload
 apt_remove --purge '^deluge.*'
 dpkg -r python-libtorrent > /dev/null 2>&1
 dpkg -r python3-libtorrent > /dev/null 2>&1
@@ -33,6 +34,7 @@ fi
 rm -f /etc/nginx/apps/deluge.conf > /dev/null 2>&1
 rm -f /etc/nginx/apps/dindex.conf > /dev/null 2>&1
 rm -f /etc/nginx/conf.d/*.deluge.conf > /dev/null 2>&1
+if [[ -f /install/.nginx.lock ]]; then systemctl reload nginx; fi
 
 rm -rf /usr/lib/python2.7/dist-packages/deluge*
 

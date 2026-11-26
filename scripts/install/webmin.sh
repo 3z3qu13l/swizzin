@@ -11,9 +11,10 @@ _install_webmin() {
         /etc/apt/trusted.gpg.d/webmin*.gpg \
         /usr/share/keyrings/webmin-archive-keyring.gpg
 
-    install -d -m 0755 /usr/share/keyrings
-    curl -fsSL https://download.webmin.com/developers-key.asc | gpg --dearmor -o /usr/share/keyrings/webmin-archive-keyring.gpg 2>> "${log}"
-    chmod 0644 /usr/share/keyrings/webmin-archive-keyring.gpg
+    apt_key_install https://download.webmin.com/developers-key.asc /usr/share/keyrings/webmin-archive-keyring.gpg || {
+        echo_error "The Webmin signing key could not be downloaded"
+        exit 1
+    }
 
     cat > /etc/apt/sources.list.d/webmin.list << EOF
 deb [signed-by=/usr/share/keyrings/webmin-archive-keyring.gpg] https://download.webmin.com/download/newkey/repository stable contrib

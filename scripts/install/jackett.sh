@@ -36,7 +36,7 @@ case "$(_os_arch)" in
 esac
 
 version=$(github_latest_version "Jackett/Jackett")
-password=$(cut -d: -f2 < /root/.master.info)
+password=$(cut -d: -f2- < /root/.master.info)
 
 echo_progress_start "Installing Jackett dependencies..."
 icu_pkg=$(apt-cache pkgnames libicu 2> /dev/null | grep -E '^libicu[0-9]+$' | sort -V | tail -n1)
@@ -135,7 +135,7 @@ sleep 10
 
 echo_progress_start "Setting admin password"
 cookie=$(curl -v 127.0.0.1:9117/jackett/UI/Dashboard -L 2>&1 | grep -m1 Set-Cookie | awk '{printf $3}' | sed 's/;//g')
-curl http://127.0.0.1:9117/jackett/api/v2.0/server/adminpassword -H 'Content-Type: application/json' -H 'Cookie: '${cookie}'' --data-binary '"'${password}'"' >> $log 2>&1
+printf %s "$password" | jq -Rs . | curl http://127.0.0.1:9117/jackett/api/v2.0/server/adminpassword -H 'Content-Type: application/json' -H 'Cookie: '${cookie}'' --data-binary @- >> $log 2>&1
 echo_progress_done
 
 touch /install/.jackett.lock

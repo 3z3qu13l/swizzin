@@ -10,7 +10,10 @@ install_java8() {
                 # adoptopenjdk.jfrog.io is gone: its leftover source makes every apt update fail
                 rm -f /etc/apt/sources.list.d/adoptopenjdk.list /usr/share/keyrings/adoptopenjdk-archive-keyring.gpg
                 echo_progress_start "Adding temurin repository"
-                curl -s https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor > /usr/share/keyrings/temurin-archive-keyring.gpg 2>> "${log}"
+                apt_key_install https://packages.adoptium.net/artifactory/api/gpg/key/public /usr/share/keyrings/temurin-archive-keyring.gpg || {
+                    echo_error "The Temurin signing key could not be downloaded"
+                    exit 1
+                }
                 echo "deb [signed-by=/usr/share/keyrings/temurin-archive-keyring.gpg] https://packages.adoptium.net/artifactory/deb/ ${codename} main" > /etc/apt/sources.list.d/temurin.list
                 echo_progress_done "temurin repos enabled"
                 apt_update

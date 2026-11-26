@@ -355,3 +355,22 @@ apt_autoremove() {
     echo_progress_done "Apt autoremove complete"
 }
 export -f apt_autoremove
+
+# Installs a repository signing key from a URL, and only a key gpg can read. An empty or HTML keyring next to
+# a source list made every later apt run fail, and with it every box command. Usage: apt_key_install url keyring
+function apt_key_install() {
+    local url="$1" keyring="$2" tmp key rc=1
+    tmp=$(mktemp) || return 1
+    key=$(mktemp) || return 1
+    if curl -fsSL --connect-timeout 15 --max-time 60 "$url" -o "$tmp" >> "$log" 2>&1 && gpg --show-keys "$tmp" > /dev/null 2>> "$log"; then
+        if grep -q -- '-----BEGIN PGP' "$tmp"; then
+            gpg --dearmor --yes -o "$key" "$tmp" >> "$log" 2>&1
+        else
+            cp "$tmp" "$key"
+        fi && install -d -m 755 "${keyring%/*}" && install -m 644 "$key" "$keyring" && rc=0
+    fi
+    rm -f "$tmp" "$key"
+    if ((rc)); then echo_log_only "No valid signing key at $url"; fi
+    return $rc
+}
+export -f apt_key_install

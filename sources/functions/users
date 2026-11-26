@@ -10,7 +10,7 @@ function _get_user_password() {
         if [[ -f $file ]]; then
             user_in_file=$(cat $file | cut -d: -f1)
             if [ "$user_in_file" = "$user_to_get" ]; then
-                password="$(cat $file | cut -d: -f2)"
+                password="$(cut -d: -f2- < "$file")"
                 break
             fi
         fi
@@ -110,6 +110,22 @@ function password_check() {
     fi
 
     #Perform tests. If failure is detected, recurse by unsetting $pass, and running `password_check $ui`
+    ## Passwords are stored as user:password, and Deluge keeps them in user:password:level lines
+    if [[ $pass == *:* ]]; then
+        if [[ $UNATTEND == "true" ]]; then
+            echo_error "Passwords cannot contain a colon (:)."
+            exit 1
+        fi
+        if [[ $ui = "whiptail" ]]; then
+            whiptail --title "Error" --msgbox "Passwords cannot contain a colon (:)." --ok-button="Try again" 10 50
+        else
+            echo_warn "Passwords cannot contain a colon (:). Press enter to try again"
+            read -n 1 -r
+        fi
+        unset pass
+        password_check "$1"
+        return
+    fi
     ##Cracklib test
     if [ "$SKIPCRACKLIB" != "true" ]; then
         echo_progress_start "Checking password strength"

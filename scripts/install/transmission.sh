@@ -155,7 +155,7 @@ _mkconf_transmission() {
     "rpc-enabled": true,
     "rpc-host-whitelist": "",
     "rpc-host-whitelist-enabled": true,
-    "rpc-password": "${rpc_password}",
+    "rpc-password": $(printf %s "$rpc_password" | jq -Rs .),
     "rpc-port": ${rpc_port},
     "rpc-url": "/transmission/",
     "rpc-username": "${user}",

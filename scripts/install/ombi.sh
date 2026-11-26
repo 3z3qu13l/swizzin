@@ -6,7 +6,7 @@ function _sources() {
     echo_progress_start "Installing ombi apt sources"
     #shellcheck source=sources/functions/ombi
     . /etc/swizzin/sources/functions/ombi
-    ombi_apt_source
+    ombi_apt_source || exit 1
     echo_progress_done "Sources installed"
     apt_update
 }

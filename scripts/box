@@ -480,6 +480,17 @@ function _deluser() {
     echo_success "User $user removed"
 }
 
+# Rewrites a file of a user through a filter. The file is read and written as that user, so a link they
+# planted to a system file is never followed as root. Passwords reach awk through the environment, which
+# it reads as-is: a / & \ or " in them is written as typed, and they stay out of the process list
+function _rewrite_file() {
+    local owner="$1" file="$2" new
+    shift 2
+    new=$(runuser -u "$owner" -- cat -- "$file" | "$@")
+    [[ -n $new ]] || return 1
+    printf '%s\n' "$new" | runuser -u "$owner" -- tee -- "$file" > /dev/null
+}
+
 function _chpasswd() {
     user="$2"
     if ! id "$user"; then
@@ -539,11 +550,16 @@ function _chpasswd() {
                     elif $(command -v python3 > /dev/null 2>&1); then
                         pythonversion=python3
                     fi
-                    DWP=$(${pythonversion} /usr/local/bin/swizzin/deluge.Userpass.py ${pass} ${DWSALT})
-                    sed -i "s/.*${user}.*/${user}:${pass}:10/" /home/$user/.config/deluge/auth
+                    DWP=$(printf %s "$pass" | ${pythonversion} /usr/local/bin/swizzin/deluge.Userpass.py "${DWSALT}")
+                    SWIZ_PASS="$pass" _rewrite_file "$user" /home/$user/.config/deluge/auth \
+                        awk -F: -v u="$user" '$1 == u { $0 = u ":" ENVIRON["SWIZ_PASS"] ":10" } 1'
                     sed -i "s/.*pwd_salt.*/  \"pwd_salt\": \"${DWSALT}\",/" /home/$user/.config/deluge/web.conf
                     sed -i "s/.*pwd_sha1.*/  \"pwd_sha1\": \"${DWP}\",/" /home/$user/.config/deluge/web.conf
-                    sed -i "/$user/{n;s/.*/      \"${pass}\"/}" /home/${user}/.config/deluge/hostlist.conf.1.2
+                    # Deluge 1.3 only
+                    if [[ -f /home/${user}/.config/deluge/hostlist.conf.1.2 ]]; then
+                        SWIZ_PASS=$(printf %s "$pass" | jq -Rs .) _rewrite_file "$user" /home/${user}/.config/deluge/hostlist.conf.1.2 \
+                            awk -v u="\"$user\"" 'f && ENVIRON["SWIZ_PASS"] != "" { print "      " ENVIRON["SWIZ_PASS"]; f = 0; next } index($0, u) { f = 1 } 1'
+                    fi
                     systemctl start deluged@${user} >> $log 2>&1
                     systemctl start deluge-web@${user} >> $log 2>&1
                     ;;
@@ -566,7 +582,8 @@ function _chpasswd() {
                     ;;
                 transmission)
                     systemctl stop transmission@${user} >> $log 2>&1
-                    sed -i "s/.*rpc-password.*/  \"rpc-password\": \"${pass}\",/" /home/$user/.config/transmission-daemon/settings.json
+                    SWIZ_PASS=$(printf %s "$pass" | jq -Rs .) _rewrite_file "$user" /home/$user/.config/transmission-daemon/settings.json \
+                        awk 'ENVIRON["SWIZ_PASS"] != "" && /"rpc-password"/ { $0 = "  \"rpc-password\": " ENVIRON["SWIZ_PASS"] "," } 1'
                     systemctl start transmission@${user} >> $log 2>&1
                     ;;
                 *) ;;

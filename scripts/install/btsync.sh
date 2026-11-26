@@ -21,8 +21,11 @@ MASTER=$(cut -d: -f1 < /root/.master.info)
 BTSYNCIP=$(ip route get 1 | sed -n 's/^.*src \([0-9.]*\) .*$/\1/p')
 
 function _installBTSync1() {
+    apt_key_install https://linux-packages.resilio.com/resilio-sync/key.asc /usr/share/keyrings/btsync-archive-keyring.gpg || {
+        echo_error "The Resilio Sync signing key could not be downloaded"
+        exit 1
+    }
     echo "deb [signed-by=/usr/share/keyrings/btsync-archive-keyring.gpg] http://linux-packages.resilio.com/resilio-sync/deb resilio-sync non-free" > /etc/apt/sources.list.d/btsync.list
-    curl -s https://linux-packages.resilio.com/resilio-sync/key.asc | gpg --dearmor > /usr/share/keyrings/btsync-archive-keyring.gpg 2>> "${log}"
     apt_update
 }
 
