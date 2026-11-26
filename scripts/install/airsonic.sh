@@ -2,7 +2,6 @@
 
 #shellcheck source=sources/functions/utils
 . /etc/swizzin/sources/functions/utils
-master=$(_get_master_username)
 distribution=$(lsb_release -is)
 
 airsonicdir="/opt/airsonic" #Where to install airosnic
@@ -23,7 +22,6 @@ airsonic_dl() {
         exit 1
     fi
     useradd $airsonicusr --system -d "$airsonicdir" >> "$log" 2>&1
-    usermod -a -G "$master" $airsonicusr
     chown -R $airsonicusr:$airsonicusr $airsonicdir
     echo_progress_done "Binary DL'd"
 }
@@ -67,6 +65,7 @@ airsonic_nginx
 airsonic_start
 
 echo_success "Airsonic installed"
+echo_info "Airsonic reads none of your folders yet. For each music folder, run: box media-access airsonic <folder>"
 echo_warn "Wait for Airsonic to start up (max 5 mins) and continue the set up in the browser.\nYou can use \`journalctl -fu airsonic\` to follow the progress."
 echo_warn "The default credentials are admin/admin\nChange it asap, or someone else will!"
 

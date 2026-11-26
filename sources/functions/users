@@ -230,7 +230,7 @@ function _write_user_sudoers() {
     # sudo skips files with a dot in their name, so the draft is never read before it is checked
     tmp=$(mktemp /etc/sudoers.d/.swizzin.XXXXXX) || return 1
     cat > "$tmp" << SUD
-Cmnd_Alias   ${alias} = /bin/systemctl stop flood@${user}, /bin/systemctl restart flood@${user}, /bin/systemctl start flood@${user}, /bin/systemctl start rtorrent@${user}, /bin/systemctl stop rtorrent@${user}, /bin/systemctl restart rtorrent@${user}, /bin/systemctl start deluged@${user}, /bin/systemctl stop deluged@${user}, /bin/systemctl restart deluged@${user}, /bin/systemctl start deluge-web@${user}, /bin/systemctl stop deluge-web@${user}, /bin/systemctl restart deluge-web@${user}, /bin/systemctl start irssi@${user}, /bin/systemctl stop irssi@${user}, /bin/systemctl restart irssi@${user}, /bin/systemctl start qbittorrent@${user}, /bin/systemctl stop qbittorrent@${user}, /bin/systemctl restart qbittorrent@${user}, /usr/local/bin/swizzin/box chpasswd ${user}
+Cmnd_Alias   ${alias} = /bin/systemctl stop flood@${user}, /bin/systemctl restart flood@${user}, /bin/systemctl start flood@${user}, /bin/systemctl start rtorrent@${user}, /bin/systemctl stop rtorrent@${user}, /bin/systemctl restart rtorrent@${user}, /bin/systemctl start deluged@${user}, /bin/systemctl stop deluged@${user}, /bin/systemctl restart deluged@${user}, /bin/systemctl start deluge-web@${user}, /bin/systemctl stop deluge-web@${user}, /bin/systemctl restart deluge-web@${user}, /bin/systemctl start irssi@${user}, /bin/systemctl stop irssi@${user}, /bin/systemctl restart irssi@${user}, /bin/systemctl start qbittorrent@${user}, /bin/systemctl stop qbittorrent@${user}, /bin/systemctl restart qbittorrent@${user}, /usr/local/bin/swizzin/box chpasswd ${user}, /usr/local/bin/swizzin/box fix-downloads ${user}
 
 ${user}     ALL = (ALL) NOPASSWD: ${alias}
 SUD
@@ -300,25 +300,47 @@ function _as_www_data() {
 }
 export -f _as_www_data
 
+# Sets ACL entries on a folder ($2) and what is in it: $3 on folders, $4 on the rest. Run as its owner ($1)
+# from /, so only what they own and can read is changed, never on another disk mounted inside (rclone,
+# FUSE); setfacl leaves entries already right untouched. Prints the first entry of another owner and
+# the first error
+function _acl_tree() {
+    local u=$1 r=$2 mp prune=()
+    while read -r mp; do
+        if [[ $mp == "$r/"* ]]; then prune+=(-path "$mp" -prune -o); fi
+    done < <(findmnt -rno TARGET)
+    runuser -u "$u" -- find "$r" -xdev "${prune[@]}" \( -type d ! -readable -prune \) -o ! -type l \( ! -user "$u" -printf 'F %p\n' -o -type d -exec setfacl -P -m "$3" {} + -o -exec setfacl -P -m "$4" {} + \) 2>&1 |
+        awk -v u="$u" '{gsub(/[[:cntrl:]]/, "?")} /^F \// {if (!f++) print substr($0, 3) " is not owned by " u ", it keeps its own permissions"; next} {if (!e++) print}'
+}
+export -f _acl_tree
+
+# The folder a download listing conf serves, e.g. /home/$remote_user/torrents/rtorrent
+# shellcheck disable=SC2016 # nginx's $remote_user, literally
+function _served_root() {
+    [[ -f $1 ]] && sed -nE 's|^\s*alias (/home/\$remote_user/[^;]*[^/;])/?;\s*$|\1|p' "$1" | head -1
+}
+export -f _served_root
+
 # A folder nginx lists for its user ($2, relative to the home, e.g. torrents/rtorrent): www-data lists its
 # parents and reads it, and the default entry keeps what is downloaded there later readable. A folder
-# linked elsewhere gets it on its target. Only what the user owns and can read is changed, never on
-# another disk mounted inside (rclone, FUSE); setfacl leaves files already right untouched.
+# linked elsewhere gets it on its target, through _acl_tree.
 # nginx refuses a link whose owner is not its target's: a link root made in the home towards a folder of
 # the user (~/torrents -> /mnt/disk2/u) is remade by the user, who could replace it anyway.
 # A missing folder, or one behind a broken link (an unmounted disk), is skipped with a message.
 # Prints what it skipped, and fails with the reason when www-data still cannot read the folder
 function _www_acl_served() {
-    local u=$1 rel=$2 c=/home/$1 r mp part parts prune=()
+    local u=$1 rel=$2 c=/home/$1 r part parts
     [[ -e /home/$u/$rel || -L /home/$u/$rel ]] || return 0
     (
         cd / || exit 1
         IFS=/ read -ra parts <<< "$rel"
         for part in "${parts[@]}"; do
             c+=/$part
-            r=$(readlink -f "$c")
-            if [[ ! -e $r ]]; then
-                echo "$c leads to $r, which is missing (an unmounted disk?): skipped"
+            # resolved as the user: box fix-downloads runs this on their request, root would tell them
+            # what exists where they cannot look
+            r=$(runuser -u "$u" -- readlink -f -- "$c")
+            if [[ -z $r ]] || ! runuser -u "$u" -- test -e "$r"; then
+                echo "$c leads to a folder that is missing or out of reach of $u (an unmounted disk?): skipped"
                 exit 0
             fi
             if [[ -L $c && $(stat -c %U "$c") == root && $(stat -c %U "$r") == "$u" ]]; then
@@ -328,12 +350,7 @@ function _www_acl_served() {
                 runuser -u "$u" -- setfacl -P -m u:www-data:rx "$r"
             fi
         done
-        while read -r mp; do
-            if [[ $mp == "$r/"* ]]; then prune+=(-path "$mp" -prune -o); fi
-        done < <(findmnt -rno TARGET)
-        # its first line of each kind is enough: what another owner has, and what setfacl refused
-        runuser -u "$u" -- find "$r" -xdev "${prune[@]}" \( -type d ! -readable -prune \) -o ! -type l \( ! -user "$u" -printf 'F %p\n' -o -type d -exec setfacl -P -m u:www-data:rx,d:u:www-data:rX {} + -o -exec setfacl -P -m u:www-data:rX {} + \) 2>&1 |
-            awk '/^F \// {if (!f++) print substr($0, 3) " is not owned by '"$u"', it keeps its own permissions"; next} {if (!e++) print}'
+        _acl_tree "$u" "$r" u:www-data:rx,d:u:www-data:rX u:www-data:rX
         _as_www_data test -r "$r" -a -x "$r" || {
             echo "www-data still cannot read $r"
             exit 1
@@ -341,3 +358,42 @@ function _www_acl_served() {
     )
 }
 export -f _www_acl_served
+
+# Gives a media server's account ($1) $3 (rX, or rwX) on a folder ($2), on what is in it and, through a
+# default entry, on what is created there later, and x on each parent its owner also owns (the home).
+# Everything is set by the folder's owner, so a link planted there only reaches their own files, and a
+# file of another owner keeps its permissions. Checked as the account without its groups: fails with
+# the reason when the account still cannot read the folder
+function _media_acl() {
+    local a=$1 perm=$3 r p o
+    r=$(readlink -f -- "$2")
+    if [[ ! -d $r ]]; then
+        echo "$2 is not a folder"
+        return 1
+    fi
+    # A user could link their folder to another user's: only a path without links is taken, compared
+    # after it was resolved, so a link placed later changes nothing
+    if [[ $r != "$(realpath -s -m -- "$2")" ]]; then
+        echo "$2 goes through a link to $r (owned by $(stat -c %U "$r")): give that path if it is the right folder"
+        return 1
+    fi
+    o=$(stat -c %U "$r")
+    if [[ $o == root ]]; then
+        echo "$r belongs to root: give it to the user whose media it holds, or set the ACL yourself"
+        return 1
+    fi
+    (
+        cd / || exit 1
+        p=$r
+        while p=${p%/*}; [[ -n $p ]]; do
+            if [[ $(stat -c %U "$p") == "$o" ]]; then runuser -u "$o" -- setfacl -P -m "u:$a:x" "$p"; fi
+        done
+        # the owner keeps what the server creates there (Calibre-web adds books)
+        _acl_tree "$o" "$r" "u:$a:${perm/X/x},d:u:$a:$perm,d:u:$o:rwX" "u:$a:$perm"
+        setpriv --reuid="$a" --regid="$(id -g "$a")" --clear-groups -- test -r "$r" -a -x "$r" || {
+            echo "$a still cannot read $r: check the permissions of its parents"
+            exit 1
+        }
+    )
+}
+export -f _media_acl

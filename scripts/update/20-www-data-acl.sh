@@ -14,11 +14,6 @@ _in_group() {
     [[ ,$(getent group "$2" | cut -d: -f4), == *",$1,"* ]]
 }
 
-# The folder a download listing conf serves, e.g. /home/$remote_user/torrents/rtorrent
-_served_root() {
-    [[ -f $1 ]] && sed -nE 's|^\s*alias (/home/\$remote_user/[^;]*[^/;])/?;\s*$|\1|p' "$1" | head -1
-}
-
 users=()
 gids=()
 for u in $(_get_user_list); do

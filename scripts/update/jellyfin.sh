@@ -86,12 +86,11 @@ if [[ -f /install/.jellyfin.lock ]]; then
         # Configure the new jellyfin service.
         systemctl -q stop jellyfin.service
         #
-        # Add the jellyfin user to the master user's group to use our ssl certs.
-        usermod -a -G "${username}" jellyfin
-        #
         # Set the correct and required permissions of any directories we created or modified.
         chown "${username}:${username}" -R "/home/${username}/.ssl"
         chmod -R g+r "/home/${username}/.ssl"
+        # Jellyfin reads our ssl certs, and nothing else of the home
+        out=$(_media_acl jellyfin "/home/${username}/.ssl" rX 2>&1) || echo_warn "Jellyfin cannot read its certificate in /home/${username}/.ssl: $out"
         #
         # Set the default permissions after we have migrated our data
         chown -R jellyfin:jellyfin "/etc/jellyfin"

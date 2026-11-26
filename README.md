@@ -117,6 +117,10 @@ Box functions:
     -   Usage: `box deluser exgirlfriend`
 -   chpasswd - changes the password for a user. Define a single user with the command.
     -   Usage: `box chpasswd forgetfulfriend`
+-   fix-downloads - makes files moved (`mv`) into a user's download folders openable from the web again: a moved file keeps its own permissions. Each user can run it with sudo and their own name.
+    -   Usage: `sudo box fix-downloads freeloadingfriend`
+-   media-access - lets a media server (plex, emby, jellyfin, airsonic, calibreweb) read a library folder and what is added to it later, and nothing else in the home (calibreweb may also write there). Run it again after moving files in from elsewhere.
+    -   Usage: `box media-access plex /home/user/media`
 -   update - use this command to update your box with the newest changes from github
     -   Usage: `box update`
 -   upgrade - upgrade the given package (available scripts are in scripts/upgrade)

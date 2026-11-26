@@ -33,8 +33,6 @@ if [[ -n $active ]]; then
     fi
 fi
 
-username=$(cut -d: -f1 < /root/.master.info)
-
 echo_progress_start "Downloading emby installer"
 current=$(github_latest_version MediaBrowser/Emby.Releases)
 wget -O /tmp/emby.dpkg https://github.com/MediaBrowser/Emby.Releases/releases/download/${current}/emby-server-deb_${current}_$(_os_arch).deb >> $log 2>&1 || {
@@ -51,10 +49,6 @@ dpkg -i /tmp/emby.dpkg >> $log 2>&1 || {
 rm /tmp/emby.dpkg
 echo_progress_done "Emby package installed"
 
-if [[ -f /etc/emby-server.conf ]]; then
-    printf "\nEMBY_USER="${username}"\nEMBY_GROUP="${username}"\n" >> /etc/emby-server.conf
-fi
-
 if [[ -f /install/.nginx.lock ]]; then
     echo_progress_start "Setting up Emby nginx configuration"
     bash /usr/local/bin/swizzin/nginx/emby.sh
@@ -65,8 +59,8 @@ else
 fi
 
 echo_progress_start "Starting Emby"
-usermod -a -G ${username} emby
 systemctl restart emby-server > /dev/null 2>&1
 echo_progress_done
 touch /install/.emby.lock
 echo_success "Emby installed"
+echo_info "Emby reads none of your folders yet. For each library folder, run: box media-access emby <folder>"
