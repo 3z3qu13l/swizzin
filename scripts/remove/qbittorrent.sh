@@ -7,7 +7,8 @@
 users=($(_get_user_list))
 for user in ${users[@]}; do
     systemctl disable --now -q qbittorrent@${user}
-    rm -rf /home/${user}/.config/qbittorrent
+    # as the user: a root rm would follow a ~/.config the user swapped for a link
+    (cd / && runuser -u "${user}" -- rm -rf /home/${user}/.config/qBittorrent)
 done
 rm -f /etc/systemd/system/qbittorrent@.service
 dpkg -r qbittorrent-nox > /dev/null 2>&1
