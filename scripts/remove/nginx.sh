@@ -14,6 +14,10 @@ rm -rf /etc/php
 
 #shellcheck source=sources/functions/utils
 . /etc/swizzin/sources/functions/utils
+#shellcheck source=sources/functions/rutorrent
+. /etc/swizzin/sources/functions/rutorrent
+rutorrent_profiles_unmount
+rm_if_exists "/install/.rutorrent.nosymfollow.failed"
 rm_if_exists "/srv/rutorrent"
 rm_if_exists "/install/.rutorrent.lock"
 

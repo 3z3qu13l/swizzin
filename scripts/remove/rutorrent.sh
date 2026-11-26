@@ -4,6 +4,10 @@
 
 users=($(cut -d: -f1 < /etc/htpasswd))
 
+#shellcheck source=sources/functions/rutorrent
+. /etc/swizzin/sources/functions/rutorrent
+rutorrent_profiles_unmount
+rm -f /install/.rutorrent.nosymfollow.failed
 rm -rf /srv/rutorrent
 rm -rf /etc/nginx/apps/rutorrent.conf
 

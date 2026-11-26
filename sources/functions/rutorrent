@@ -153,7 +153,7 @@ RUC
 # could rewrite php/initplugins.php, which every rTorrent runs as its user. A bug that runs code as www-data
 # still reaches every rTorrent: www-data drives them through their socket, which runs commands.
 # Each user's profile (share/users/<user>) and conf are shared by www-data and that user only, profiles were
-# 0777. A user can still place a link in their profile that ruTorrent follows into another's.
+# 0777. A link a user places in their profile is not followed once share/users is mounted nosymfollow.
 # www-data and the users write share/users, so root never walks a profile: each account sets the ACL on its
 # own files, a link or hard link placed there then only reaches what that account could already change.
 function rutorrent_perms() {
@@ -260,6 +260,7 @@ function _rutorrent_perms() {
             _rutorrent_profile_acl "$u" "$u" "$d" || echo_warn "Could not share the ruTorrent profile $d between $u and www-data"
         fi
     done
+    _rutorrent_profiles_nosymfollow
 
     git config --global --unset-all safe.directory '^/srv/rutorrent/?$' 2> /dev/null
     # also retried at the next run after a failed fetch, from the tag root kept
@@ -286,11 +287,73 @@ function _rutorrent_git_again() {
         rm -rf "$r/.git"
         mv "$tmp/r/.git" "$r/.git"
         rm -f /install/.rutorrent.tag
+        _rutorrent_report_changes "$1"
     else
         rm -rf "$r/.git"
         echo_warn "ruTorrent's git data could not be fetched again, box rtx cannot restore its own plugins until the next box update"
     fi
     rm -rf "$tmp"
+}
+
+# Code a www-data compromise changed before root took it over stays: the tracked files that differ from
+# release $1 are reported, but those swizzin rewrites itself and the writable profiles
+function _rutorrent_report_changes() {
+    local changed
+    # --no-checkout left the index empty: filled from the release, the files are left as they are
+    rutorrent_git reset -q >> "$log" 2>&1 || return 0
+    changed=$(rutorrent_git diff --name-only --diff-filter=MT -- . ':!share' ':!conf/users' ':!conf/config.php' \
+        ':!plugins/create/conf.php' ':!plugins/spectrogram/conf.php' ':!plugins/diskspace/action.php' ':!plugins/theme/conf.php' 2>> "$log")
+    if [[ -n $changed ]]; then
+        echo_warn "These ruTorrent files differ from its release $1, check them or reinstall ruTorrent: ${changed//$'\n'/, }"
+    fi
+}
+
+# git as root on ruTorrent's own clone only: never a repository found another way, such as a bare one
+# www-data could have planted in /srv/rutorrent while it owned it
+function rutorrent_git() {
+    [[ -d /srv/rutorrent/.git && ! -L /srv/rutorrent/.git && $(stat -c %u /srv/rutorrent/.git) == 0 ]] || return 128
+    git -C /srv/rutorrent --git-dir=/srv/rutorrent/.git --work-tree=/srv/rutorrent "$@"
+}
+
+# A user can place a link in their own profile that ruTorrent would follow into another user's: share/users
+# is mounted again over itself without following links (Linux 5.10+). Where it cannot be, that is recorded
+# and said once
+function _rutorrent_profiles_nosymfollow() {
+    local d=/srv/rutorrent/share/users unit=srv-rutorrent-share-users.mount
+    _rutorrent_nosymfollow_on && return 0
+    [[ -f /install/.rutorrent.nosymfollow.failed ]] && return 0
+    cat > /etc/systemd/system/$unit << EOF
+[Unit]
+Description=ruTorrent profiles, links in them are not followed
+
+[Mount]
+What=$d
+Where=$d
+Type=none
+Options=bind,nosymfollow
+
+[Install]
+WantedBy=local-fs.target
+EOF
+    systemctl daemon-reload
+    systemctl enable -q --now "$unit" >> "$log" 2>&1
+    _rutorrent_nosymfollow_on && return 0
+    rutorrent_profiles_unmount
+    touch /install/.rutorrent.nosymfollow.failed
+    echo_warn "$d could not be mounted without following links (Linux 5.10 or later): a user can still place a link in their ruTorrent profile that ruTorrent follows into another user's"
+}
+
+function _rutorrent_nosymfollow_on() {
+    findmnt -rno OPTIONS --mountpoint /srv/rutorrent/share/users 2> /dev/null | grep -qE '(^|,)nosymfollow(,|$)'
+}
+
+# Before /srv/rutorrent is removed: rm cannot remove a mount point
+function rutorrent_profiles_unmount() {
+    local unit=srv-rutorrent-share-users.mount
+    [[ -f /etc/systemd/system/$unit ]] || return 0
+    systemctl disable -q --now "$unit" >> "$log" 2>&1
+    rm -f /etc/systemd/system/$unit
+    systemctl daemon-reload
 }
 
 # Sets, as $1, the ACL on the files $1 owns in the profile $3 of user $2: www-data and $2 only. A file with
@@ -316,7 +379,8 @@ function rutorrent_perms_needed() {
         [[ $(stat -c %U "$r/share" 2> /dev/null) != root || $(stat -c %U "$r/share/users" 2> /dev/null) != root || ! -k $r/share/users ]] ||
         ! getfacl -cp "$r/share/users" 2> /dev/null | grep -q '^user:www-data:rwx' ||
         [[ -f /install/.rutorrent.tag ]] ||
-        grep -qE '^\s*\$profileMask\s*=\s*0777;' "$r/conf/config.php"
+        grep -qE '^\s*\$profileMask\s*=\s*0777;' "$r/conf/config.php" ||
+        { ! _rutorrent_nosymfollow_on && [[ ! -f /install/.rutorrent.nosymfollow.failed ]]; }
 }
 
 # Installs the club-QuickBox theme from GitHub, or from the copy kept in sources/vendor when GitHub cannot provide it
