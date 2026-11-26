@@ -11,33 +11,12 @@ function install_rar() {
             "arm64")
                 apt_install unrar
                 ;;
-            *) # Default case if needs to be compiled from source
-                # unrar 7.23 stable; SHA-256 matches FreeBSD ports archivers/unrar distinfo
-                srcurl="https://www.rarlab.com/rar/unrarsrc-7.2.7.tar.gz"
-                srcsha256="01d903a7dcf413cb2925696d7796e48e38d471f79bfe7ef3ad2aebf6c12dbefd"
+            *)
+                # Debian (non-free) and Ubuntu (multiverse) build unrar for their other architectures too, and
+                # keep it updated. unrar is optional: the install goes on without it
+                apt_install --ignore-errors unrar
                 ;;
         esac
-
-        if [ -n "$srcurl" ]; then
-            echo_progress_start "Compiling unrar from source"
-            # Private temp dir: fixed /tmp paths let a local user pre-plant symlinks
-            srcdir=$(mktemp -d) || {
-                echo_warn "Could not create a temporary folder for unrar\nInstallation will continue"
-                return 0
-            }
-            if ! wget -q "$srcurl" -O "$srcdir/unrarsrc.tar.gz" >> "$log" 2>&1 ||
-                ! echo "$srcsha256  $srcdir/unrarsrc.tar.gz" | sha256sum -c >> "$log" 2>&1; then
-                # unrar is optional, like a failed compile below the install goes on without it
-                echo_warn "Failed to download or verify the unrar source\nInstallation will continue"
-            elif ! tar -xzf "$srcdir/unrarsrc.tar.gz" -C "$srcdir" >> "$log" 2>&1 ||
-                ! make -C "$srcdir/unrar" -f makefile >> "$log" 2>&1; then
-                echo_warn "Failed to compile unrar. Please investigate\nInstallation will continue"
-            else
-                install -v -m755 "$srcdir/unrar/unrar" /usr/bin >> "$log"
-                echo_progress_done "Unrar compiled and installed"
-            fi
-            rm -rf "$srcdir"
-        fi
 
         #Should not be required anymore, left for posterity
         if [ -n "$dlurl" ]; then

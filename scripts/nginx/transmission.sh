@@ -70,14 +70,19 @@ for u in ${users[@]}; do
     done
 
     confpath="/home/${u}/.config/transmission-daemon/settings.json"
-    jq '.["rpc-bind-address"] = "127.0.0.1"' "$confpath" >> /root/logs/swizzin.log
-    RPCPORT=$(jq -r '.["rpc-port"]' < "$confpath")
     if [[ ! -f /etc/nginx/conf.d/${u}.transmission.conf ]]; then
-        cat > /etc/nginx/conf.d/${u}.transmission.conf << TDCONF
+        # read as the user, who writes this file: a link must not reach what only root reads, and
+        # anything but a number would be written into nginx's config
+        RPCPORT=$(runuser -u "$u" -- jq -r '.["rpc-port"]' "$confpath")
+        if [[ ! $RPCPORT =~ ^[0-9]{1,5}$ ]]; then
+            echo_warn "The Transmission port of $u is not a number, its web interface is not set up"
+        else
+            cat > /etc/nginx/conf.d/${u}.transmission.conf << TDCONF
 upstream ${u}.transmission {
     server 127.0.0.1:${RPCPORT};
 }
 TDCONF
+        fi
     fi
     if [[ $active == "active" ]]; then
         systemctl start transmission@${u}

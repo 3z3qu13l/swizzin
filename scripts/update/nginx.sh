@@ -137,6 +137,17 @@ DIN
     fi
 
     if [[ -f /install/.transmission.lock ]]; then
+        # The 2022 update wrote a folder Transmission does not use, unless an admin chose it at install
+        # shellcheck disable=SC2016 # $remote_user is nginx's
+        if grep -qE '^\s*alias /home/\$remote_user/torrents/transmission/?;' /etc/nginx/apps/tmsindex.conf &&
+            ! compgen -G '/home/*/torrents/transmission' > /dev/null; then
+            echo_progress_start "Pointing the transmission downloads listing to transmission/downloads"
+            sed -i -E 's|^(\s*alias /home/\$remote_user/)torrents/transmission/?;|\1transmission/downloads;|' /etc/nginx/apps/tmsindex.conf
+            for u in $(_get_user_list); do
+                _www_acl_served "$u" transmission/downloads >> "$log" 2>&1 || echo_warn "Could not let nginx read /home/$u/transmission/downloads"
+            done
+            echo_progress_done
+        fi
         if grep -q "Content-Security-Policy" /etc/nginx/apps/tmsindex.conf; then
             :
         else
