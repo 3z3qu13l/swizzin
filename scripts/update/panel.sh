@@ -5,6 +5,8 @@ if [[ -f /install/.panel.lock ]]; then
     . /etc/swizzin/sources/functions/utils
     #shellcheck source=sources/functions/pyenv
     . /etc/swizzin/sources/functions/pyenv
+    #shellcheck source=sources/functions/panel
+    . /etc/swizzin/sources/functions/panel
     if [[ ! -d /opt/swizzin ]]; then
         echo_progress_start "swizzifying the panel"
         rm_if_exists "/srv/panel"
@@ -46,19 +48,10 @@ if [[ -f /install/.panel.lock ]]; then
 
     fi
 
-    if ! grep -q SYSDCMNDS /etc/sudoers.d/panel; then
-        echo_progress_start "Adding panel to sudoers"
-        cat > /etc/sudoers.d/panel << EOSUD
-#Defaults  env_keep -="HOME"
-Defaults:swizzin !logfile
-Defaults:swizzin !syslog
-Defaults:swizzin !pam_session
-
-Cmnd_Alias   CMNDS = /usr/bin/quota
-Cmnd_Alias   SYSDCMNDS = /bin/systemctl start *, /bin/systemctl stop *, /bin/systemctl restart *, /bin/systemctl disable *, /bin/systemctl enable *
-
-swizzin     ALL = (ALL) NOPASSWD: CMNDS, SYSDCMNDS
-EOSUD
+    # also rewrites the rules that sudo-rs rejects (Ubuntu 26.04)
+    if ! grep -qs SYSDCMNDS /etc/sudoers.d/panel || ! visudo -cqf /etc/sudoers.d/panel > /dev/null 2>&1; then
+        echo_progress_start "Updating panel sudoers"
+        panel_sudoers && echo_progress_done
     fi
 
     if grep -q -E "swizzin.*/bin/sh" /etc/passwd; then

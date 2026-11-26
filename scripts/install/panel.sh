@@ -24,6 +24,8 @@ fi
 . /etc/swizzin/sources/functions/utils
 #shellcheck source=sources/functions/pyenv
 . /etc/swizzin/sources/functions/pyenv
+#shellcheck source=sources/functions/panel
+. /etc/swizzin/sources/functions/panel
 
 master=$(_get_master_username)
 
@@ -104,17 +106,7 @@ TimeoutStopSec=300
 WantedBy=multi-user.target
 EOS
 
-cat > /etc/sudoers.d/panel << EOSUD
-#Defaults  env_keep -="HOME"
-Defaults:swizzin !logfile
-Defaults:swizzin !syslog
-Defaults:swizzin !pam_session
-
-Cmnd_Alias   CMNDS = /usr/bin/quota
-Cmnd_Alias   SYSDCMNDS = /bin/systemctl start *, /bin/systemctl stop *, /bin/systemctl restart *, /bin/systemctl disable *, /bin/systemctl enable *
-
-swizzin     ALL = (ALL) NOPASSWD: CMNDS, SYSDCMNDS
-EOSUD
+panel_sudoers || exit 1
 
 systemctl enable -q --now panel >> ${log} 2>&1
 echo_progress_done "Panel started"
