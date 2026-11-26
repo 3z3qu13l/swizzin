@@ -56,6 +56,16 @@ if [ -f /install/.rutorrent.lock ]; then
             echo_log_only "ruTorrent fastcgi_split_path_info triggers nginx reload"
             reloadnginx=1
         fi
+        if ! grep -qF 'rutorrent/(conf|share)/' /etc/nginx/apps/rutorrent.conf; then
+            echo_progress_start "Closing ruTorrent's profiles to the web"
+            deny=$(mktemp)
+            rutorrent_nginx_deny > "$deny"
+            sed -i "/^location \/rutorrent {/r $deny" /etc/nginx/apps/rutorrent.conf
+            rm -f "$deny"
+            grep -qF 'rutorrent/(conf|share)/' /etc/nginx/apps/rutorrent.conf || echo_warn "Could not close /rutorrent/share and /rutorrent/conf in /etc/nginx/apps/rutorrent.conf"
+            reloadnginx=1
+            echo_progress_done
+        fi
     fi
 
     if [[ -f /install/.flood.lock ]]; then

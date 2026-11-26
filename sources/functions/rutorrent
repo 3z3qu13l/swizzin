@@ -447,6 +447,16 @@ RUFMC
     fi
 }
 
+# Profiles and per-user conf are for PHP only: served, they gave any web user another user's tracker logins,
+# and a .php file a user placed in their profile ran as PHP
+function rutorrent_nginx_deny() {
+    cat << 'EOF'
+  location ~ ^/rutorrent/(conf|share)/ {
+    deny all;
+  }
+EOF
+}
+
 function rutorrent_nginx_config() {
     if [[ ! -f /etc/nginx/apps/rutorrent.conf ]]; then
         phpversion=$(php_service_version)
@@ -455,6 +465,8 @@ function rutorrent_nginx_config() {
 location /rutorrent {
   auth_basic "What's the password?";
   auth_basic_user_file /etc/htpasswd;
+
+$(rutorrent_nginx_deny)
 
   location ~ \.php$ {
     fastcgi_split_path_info ^(.+\.php)(/.+)\$;
