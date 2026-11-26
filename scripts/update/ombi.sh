@@ -38,9 +38,10 @@ CONF
         echo_progress_start "Upgrading ombi apt sources to official ones"
         #shellcheck source=sources/functions/ombi
         . /etc/swizzin/sources/functions/ombi
-        ombi_apt_source
-        echo_progress_done "Sources changed"
-        apt_update
+        if ombi_apt_source; then
+            echo_progress_done "Sources changed"
+            apt_update
+        fi
     fi
 
     #nagging v3 users to upgrade

@@ -9,7 +9,7 @@ if ! grep -q apt.ombi.app /etc/apt/sources.list.d/ombi.list; then
     echo_info "Upgrading ombi apt sources"
     #shellcheck source=sources/functions/ombi
     . /etc/swizzin/sources/functions/ombi
-    ombi_apt_source
+    ombi_apt_source || exit 1
 
     echo_progress_start "Backing up old Ombi config and database"
     mkdir -p /root/swizzin/backups/ombiv3

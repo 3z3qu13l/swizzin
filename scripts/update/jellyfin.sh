@@ -73,7 +73,10 @@ if [[ -f /install/.jellyfin.lock ]]; then
         echo_progress_start "Moving Jellyfin to apt-managed installation"
         #
         # Add the jellyfin official repository and key to our installation so we can use apt-get to install it jellyfin and jellyfin-ffmepg.
-        curl -s https://repo.jellyfin.org/$DIST_ID/jellyfin_team.gpg.key | gpg --dearmor > /usr/share/keyrings/jellyfin-archive-keyring.gpg 2>> "${log}"
+        apt_key_install "https://repo.jellyfin.org/$DIST_ID/jellyfin_team.gpg.key" /usr/share/keyrings/jellyfin-archive-keyring.gpg || {
+            echo_warn "The Jellyfin signing key could not be downloaded, Jellyfin is left as it is"
+            exit 0
+        }
         echo "deb [signed-by=/usr/share/keyrings/jellyfin-archive-keyring.gpg arch=$(dpkg --print-architecture)] https://repo.jellyfin.org/$DIST_ID $DIST_CODENAME main" > /etc/apt/sources.list.d/jellyfin.list
         #
         # install jellyfin and jellyfin-ffmepg using apt functions.
