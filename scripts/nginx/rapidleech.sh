@@ -11,7 +11,7 @@ sock="php${phpversion}-fpm"
 rl=/home/${MASTER}/rapidleech
 acl_ok=true
 _www_acl_served "${MASTER}" rapidleech >> "$log" 2>&1 || acl_ok=false
-(cd / && runuser -u "${MASTER}" -- find "$rl/configs" "$rl/files" -xdev -user "${MASTER}" ! -type l \( -type d -exec setfacl -P -m u:www-data:rwx,d:u:www-data:rwX {} + -o -exec setfacl -P -m u:www-data:rw {} + \)) >> "$log" 2>&1 || acl_ok=false
+(cd / && runuser -u "${MASTER}" -- find "$rl/configs" "$rl/files" -xdev \( -type d ! -readable -prune \) -o -user "${MASTER}" ! -type l \( -type d -exec setfacl -P -m u:www-data:rwx,d:u:www-data:rwX {} + -o -exec setfacl -P -m u:www-data:rw {} + \)) >> "$log" 2>&1
 _as_www_data test -w "$rl/configs" -a -w "$rl/files" -a -w "$rl/configs/files.lst" || acl_ok=false
 if [[ $acl_ok == false ]]; then echo_warn "Could not let nginx use $rl, see $log"; fi
 

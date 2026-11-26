@@ -264,9 +264,9 @@ function _htpasswd_perms() {
 }
 export -f _htpasswd_perms
 
-# Homes are 750 and www-data (nginx, PHP) is in no user's group. It may list the home, for ruTorrent's
-# folder picker, but what is inside keeps its own permissions; the panel (group swizzin) only crosses it,
-# to read the free space of disks mounted inside it.
+# Homes are 750 and www-data (nginx, PHP) is in no user's group. www-data lists the home, for ruTorrent's
+# folder picker, so it also reads the world-readable files there; the panel (group swizzin) only crosses
+# it, to read the free space of disks mounted inside it.
 # setfacl runs as the user: a symlink they placed in their home never makes root change another file
 function _home_acl() {
     local acl=u:www-data:rx
@@ -283,30 +283,40 @@ export -f _as_www_data
 
 # A folder nginx lists for its user ($2, relative to the home, e.g. torrents/rtorrent): www-data lists its
 # parents and reads it, and the default entry keeps what is downloaded there later readable. A folder
-# linked elsewhere gets it on its target. Only what the user owns is changed, and never on another disk
-# mounted inside (rclone, FUSE). A missing folder is skipped, there is nothing to serve.
+# linked elsewhere gets it on its target. Only what the user owns and can read is changed, never on
+# another disk mounted inside (rclone, FUSE); setfacl leaves files already right untouched.
+# nginx refuses a link whose owner is not its target's: a link root made in the home towards a folder of
+# the user (~/torrents -> /mnt/disk2/u) is remade by the user, who could replace it anyway.
+# A missing folder, or one behind a broken link (an unmounted disk), is skipped with a message.
 # Prints what it skipped, and fails with the reason when www-data still cannot read the folder
 function _www_acl_served() {
-    local u=$1 dir=/home/$1/$2 parent p other mp prune=()
-    [[ -e $dir || -L $dir ]] || return 0
-    parent=${dir%/*}
+    local u=$1 rel=$2 c=/home/$1 r mp part parts prune=()
+    [[ -e /home/$u/$rel || -L /home/$u/$rel ]] || return 0
     (
         cd / || exit 1
-        # a folder of another owner (a disk an admin linked there) keeps its permissions, checked at the end
-        while [[ $parent == "/home/$u" || $parent == "/home/$u/"* ]]; do
-            p=$(readlink -f "$parent")
-            if [[ $(stat -c %U "$p") == "$u" ]]; then runuser -u "$u" -- setfacl -P -m u:www-data:rx "$p" || exit 1; fi
-            parent=${parent%/*}
+        IFS=/ read -ra parts <<< "$rel"
+        for part in "${parts[@]}"; do
+            c+=/$part
+            r=$(readlink -f "$c")
+            if [[ ! -e $r ]]; then
+                echo "$c leads to $r, which is missing (an unmounted disk?): skipped"
+                exit 0
+            fi
+            if [[ -L $c && $(stat -c %U "$c") == root && $(stat -c %U "$r") == "$u" ]]; then
+                runuser -u "$u" -- ln -sfn "$(readlink "$c")" "$c"
+            fi
+            if [[ $c != "/home/$u/$rel" && $(stat -c %U "$r") == "$u" ]]; then
+                runuser -u "$u" -- setfacl -P -m u:www-data:rx "$r"
+            fi
         done
-        if [[ -L $dir ]]; then dir=$(readlink -f "$dir"); fi
         while read -r mp; do
-            if [[ $mp == "$dir/"* ]]; then prune+=(-path "$mp" -prune -o); fi
+            if [[ $mp == "$r/"* ]]; then prune+=(-path "$mp" -prune -o); fi
         done < <(findmnt -rno TARGET)
-        runuser -u "$u" -- find "$dir" -xdev "${prune[@]}" -user "$u" ! -type l \( -type d -exec setfacl -P -m u:www-data:rx,d:u:www-data:rX {} + -o -exec setfacl -P -m u:www-data:rX {} + \) || exit 1
-        other=$(find "$dir" -xdev "${prune[@]}" ! -user "$u" -print -quit)
-        if [[ -n $other ]]; then echo "$other is not owned by $u, it keeps its own permissions"; fi
-        _as_www_data test -r "$dir" -a -x "$dir" || {
-            echo "www-data still cannot read $dir"
+        # its first line of each kind is enough: what another owner has, and what setfacl refused
+        runuser -u "$u" -- find "$r" -xdev "${prune[@]}" \( -type d ! -readable -prune \) -o ! -type l \( ! -user "$u" -printf 'F %p\n' -o -type d -exec setfacl -P -m u:www-data:rx,d:u:www-data:rX {} + -o -exec setfacl -P -m u:www-data:rX {} + \) 2>&1 |
+            awk '/^F \// {if (!f++) print substr($0, 3) " is not owned by '"$u"', it keeps its own permissions"; next} {if (!e++) print}'
+        _as_www_data test -r "$r" -a -x "$r" || {
+            echo "www-data still cannot read $r"
             exit 1
         }
     )
