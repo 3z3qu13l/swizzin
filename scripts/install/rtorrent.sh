@@ -17,8 +17,6 @@ function _rconf() {
 directory.default.set = /home/${user}/torrents/rtorrent
 encoding.add = UTF-8
 encryption = allow_incoming,try_outgoing,enable_retry
-execute.nothrow = chmod,777,/home/${user}/.config/rpc.socket
-execute.nothrow = chmod,777,/home/${user}/.sessions
 network.port_random.set = yes
 network.port_range.set = $port-$portend
 network.scgi.open_local = /var/run/${user}/.rtorrent.sock

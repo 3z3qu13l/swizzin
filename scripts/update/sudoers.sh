@@ -64,6 +64,22 @@ SUD
     fi
 fi
 
+# sudo reads any root-owned rule others cannot write, but visudo -c only accepts 0440, the mode sudo installs
+for f in /etc/sudoers.d/*; do
+    [[ -f $f && ! -L $f ]] || continue
+    # sudo skips these names, so does this
+    [[ ${f##*/} == *.* || ${f##*/} == *~ ]] && continue
+    read -r mode owner group < <(stat -c '%a %U %G' "$f")
+    [[ $mode:$owner:$group == 440:root:root ]] && continue
+    # a rule sudo ignores (not root's, or writable by others) is never made valid: anyone could have written it
+    if [[ $owner != root ]] || ((8#$mode & 8#002)) || { ((8#$mode & 8#020)) && [[ $group != root ]]; }; then
+        echo_warn "$f is ignored by sudo (owner $owner, mode $mode) and was left as it is"
+        continue
+    fi
+    chown root:root "$f"
+    chmod 440 "$f"
+done
+
 if ! groups "$master" | grep -q sudo; then
     echo_log_only "Moving $master to the sudo usergroup"
     usermod -a -G sudo "$master"
