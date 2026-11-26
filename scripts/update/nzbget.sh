@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [[ -f /install/.nzbget.lock ]]; then
-    if grep -q "ExecStart=/home/%I/nzbget/nzbget -D" /etc/systemd/system/nzbget@.service; then
+    if grep -qi "ExecStart=/home/%i/nzbget/nzbget -D" /etc/systemd/system/nzbget@.service; then
         echo_progress_start "Updating NZBGet systemd service file with forking"
         cat > /etc/systemd/system/nzbget@.service << NZBGD
 [Unit]
@@ -10,12 +10,12 @@ Documentation=http://nzbget.net/Documentation
 After=network.target
 
 [Service]
-User=%I
-Group=%I
+User=%i
+Group=%i
 Type=forking
-ExecStart=/bin/sh -c "/home/%I/nzbget/nzbget -D"
-ExecStop=/bin/sh -c "/home/%I/nzbget/nzbget -Q"
-ExecReload=/bin/sh -c "/home/%I/nzbget/nzbget -O"
+ExecStart=/bin/sh -c "/home/%i/nzbget/nzbget -D"
+ExecStop=/bin/sh -c "/home/%i/nzbget/nzbget -Q"
+ExecReload=/bin/sh -c "/home/%i/nzbget/nzbget -O"
 Restart=on-failure
 
 [Install]

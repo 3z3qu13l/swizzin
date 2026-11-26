@@ -19,9 +19,9 @@ Description=Flood Web UI
 After=network.target
 
 [Service]
-EnvironmentFile=/home/%I/.config/flood/env
-ExecStart=/usr/bin/env flood -p \${FLOOD_PORT} -d /home/%I/.config/flood --allowedpath=/home/%I
-User=%I
+EnvironmentFile=/home/%i/.config/flood/env
+ExecStart=/usr/bin/env flood -p \${FLOOD_PORT} -d /home/%i/.config/flood --allowedpath=/home/%i
+User=%i
 
 [Install]
 WantedBy=multi-user.target

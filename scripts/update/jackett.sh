@@ -8,7 +8,7 @@ if [[ -f /install/.jackett.lock ]]; then
     if grep -q "ExecStart=/usr/bin/mono" /etc/systemd/system/jackett@.service; then
         echo_progress_start "Updating Jackett from mono"
         jackettver=$(wget -q https://github.com/Jackett/Jackett/releases/latest -O - | grep -E \/tag\/ | grep -v repository | awk -F "[><]" '{print $3}')
-        sed -i 's|ExecStart.*|ExecStart=/bin/sh -c "/home/%I/Jackett/jackett_launcher.sh"|g' /etc/systemd/system/jackett@.service
+        sed -i 's|ExecStart.*|ExecStart=/bin/sh -c "/home/%i/Jackett/jackett_launcher.sh"|g' /etc/systemd/system/jackett@.service
         systemctl daemon-reload
         if [[ $active == "active" ]]; then
             systemctl stop jackett@$username
@@ -29,15 +29,15 @@ if [[ -f /install/.jackett.lock ]]; then
     if ! grep -q "jackett_launcher" /etc/systemd/system/jackett@.service; then
         cat > /etc/systemd/system/jackett@.service << JAK
 [Unit]
-Description=jackett for %I
+Description=jackett for %i
 After=network.target
 
 [Service]
-SyslogIdentifier=jackett.%I
+SyslogIdentifier=jackett.%i
 Type=simple
-User=%I
-WorkingDirectory=/home/%I/Jackett
-ExecStart=/bin/sh -c "/home/%I/Jackett/jackett_launcher.sh"
+User=%i
+WorkingDirectory=/home/%i/Jackett
+ExecStart=/bin/sh -c "/home/%i/Jackett/jackett_launcher.sh"
 Restart=always
 RestartSec=5
 TimeoutStopSec=20
