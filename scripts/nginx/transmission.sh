@@ -9,6 +9,7 @@ if [[ ! -f /etc/nginx/apps/tmsindex.conf ]]; then
     cat > /etc/nginx/apps/tmsindex.conf << DIN
 location /transmission.downloads {
     alias /home/\$remote_user/transmission/downloads;
+    disable_symlinks if_not_owner from=/home/\$remote_user;
     include /etc/nginx/snippets/fancyindex.conf;
     auth_basic "What's the password?";
     auth_basic_user_file /etc/htpasswd;

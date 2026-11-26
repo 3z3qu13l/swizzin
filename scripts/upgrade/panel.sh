@@ -6,7 +6,9 @@ if [[ -f /install/.panel.lock ]]; then
     if ! dpkg -s acl > /dev/null 2>&1; then
         echo_progress_start "Modifying ACLs for swizzin group to prevent panel issues"
         apt_install acl
-        setfacl -m g:swizzin:rx /home/*
+        for u in $(_get_user_list); do
+            _home_acl "$u" >> ${log} 2>&1
+        done
         echo_progress_done
         restart_needed=1
     fi

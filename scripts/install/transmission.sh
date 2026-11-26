@@ -98,6 +98,8 @@ _mkdir_transmission() {
         mkdir -p /home/${user}/${watch_dir}
         chown ${user}:${user} -R /home/${user}/${watch_dir%%/*}
     fi
+    # the folder nginx serves, whatever download_dir is
+    _www_acl_served "${user}" transmission/downloads >> $log 2>&1 || echo_warn "Could not let nginx read /home/${user}/transmission/downloads"
 
     echo_progress_done "Directories created"
 }
