@@ -8,12 +8,29 @@ if [ -f /install/.rutorrent.lock ]; then
     cqbdir="/srv/rutorrent/plugins/theme/themes/club-QuickBox"
     #shellcheck source=sources/functions/rutorrent
     . /etc/swizzin/sources/functions/rutorrent
+    #shellcheck source=sources/functions/php
+    . /etc/swizzin/sources/functions/php
+    #shellcheck source=sources/functions/rtorrent
+    . /etc/swizzin/sources/functions/rtorrent
+    # also after a PHP version change. First: the profiles then go from www-data to its account
+    if rutorrent_php_needed; then
+        echo_progress_start "Running ruTorrent's PHP under its own account"
+        rutorrent_php_pool && rutorrent_nginx_php
+        echo_progress_done
+    fi
     if rutorrent_perms_needed; then
         # before the theme update below: git then runs as root on it
         echo_progress_start "Giving ruTorrent's code to root and each profile to its user only"
         rutorrent_perms
         echo_progress_done
     fi
+    for u in $(_get_user_list); do
+        if rutorrent_user_access_needed "$u"; then
+            echo_progress_start "Letting ruTorrent reach the rTorrent of $u"
+            rutorrent_user_access "$u"
+            echo_progress_done
+        fi
+    done
 
     # Only a clone of its own: a copy without .git would make git act on /srv/rutorrent itself.
     # No credential prompt if the repository went private.
