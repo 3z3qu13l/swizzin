@@ -115,16 +115,9 @@ DISTRO=$(lsb_release -is)
 
 _installquota
 
-cat > /etc/sudoers.d/quota << EOSUD
-#Defaults  env_keep -="HOME"
-Defaults:www-data !logfile
-Defaults:www-data !syslog
-Defaults:www-data !pam_session
-
-Cmnd_Alias   QUOTA = /usr/bin/quota
-
-www-data     ALL = (ALL) NOPASSWD: QUOTA
-EOSUD
+#shellcheck source=sources/functions/quota
+. /etc/swizzin/sources/functions/quota
+quota_sudoers || exit 1
 
 touch /install/.quota.lock
 echo "${primaryroot}" > /install/.quota.lock
