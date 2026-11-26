@@ -16,7 +16,20 @@
 
 #shellcheck source=sources/globals.sh
 . /etc/swizzin/sources/globals.sh
-echo_log_only ">>>> \`box $*\`"
+# The arguments as logged: a password given to adduser or chpasswd would stay in the log and its backups
+function _log_args() {
+    local a cmd="" n=0 out=()
+    for a in "$@"; do
+        if [[ $a != --test ]]; then
+            n=$((n + 1))
+            ((n == 1)) && cmd=$a
+            if ((n > 2)) && [[ $cmd == adduser || $cmd == chpasswd ]]; then a="<password hidden>"; fi
+        fi
+        out+=("$a")
+    done
+    printf '%s' "${out[*]}"
+}
+echo_log_only ">>>> \`box $(_log_args "$@")\`"
 echo_log_only "git @ $(git --git-dir=/etc/swizzin/.git rev-parse --short HEAD) 2>&1"
 normal=$(tput sgr0)
 
@@ -683,7 +696,7 @@ elif [[ "$*" == *--test* ]]; then
     #Removing `--test` from the arguments
     for arg in "$@"; do [[ $arg == --test ]] || args+=("$arg"); done
     set -- "${args[@]}"
-    echo_log_only "Args after cleanup: $(printf "%s\n" "$@")"
+    echo_log_only "Args after cleanup: $(_log_args "$@")"
 fi
 
 case "$1" in
