@@ -1,18 +1,12 @@
 #!/bin/bash
 
 if [[ -f /install/.quota.lock ]]; then
-    if [[ ! -f /etc/sudoers.d/quota ]]; then
+    #shellcheck source=sources/functions/quota
+    . /etc/swizzin/sources/functions/quota
+    # also rewrites the rules that sudo-rs rejects (Ubuntu 26.04)
+    if ! grep -qs QUOTA /etc/sudoers.d/quota || ! visudo -cqf /etc/sudoers.d/quota > /dev/null 2>&1; then
         echo_progress_start "Updating sudoers for quota"
-        cat > /etc/sudoers.d/quota << EOSUD
-#Defaults  env_keep -="HOME"
-Defaults:www-data !logfile
-Defaults:www-data !syslog
-Defaults:www-data !pam_session
-
-Cmnd_Alias   QUOTA = /usr/bin/quota
-
-www-data     ALL = (ALL) NOPASSWD: QUOTA
-EOSUD
-        echo_progress_done
+        # on failure the old file stays in place; do not abort the rest of box update
+        if quota_sudoers; then echo_progress_done; fi
     fi
 fi
