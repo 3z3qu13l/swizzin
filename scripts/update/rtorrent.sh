@@ -37,8 +37,8 @@ for u in "${users[@]}"; do
             rtorrent_rc_convert "/home/${u}/.rtorrent.rc"
             grep -qE '^\s*session\.umask\.set\b' "/home/${u}/.rtorrent.rc" && restart=1
         fi
-        if id -u "$u" > /dev/null 2>&1 && id -u rutorrent > /dev/null 2>&1 && [[ -d /home/${u}/.sessions ]] &&
-            ! getfacl -cp "/home/${u}/.sessions" 2> /dev/null | grep -q '^default:user:rutorrent:r'; then
+        if id -u "$u" > /dev/null 2>&1 && [[ -d /home/${u}/.sessions ]] &&
+            ! getfacl -cp "/home/${u}/.sessions" 2> /dev/null | grep -q "^default:user:$(rutorrent_web_account):r"; then
             rtorrent_session_acl "$u" >> "$log" 2>&1 || echo_warn "Could not let ruTorrent read /home/${u}/.sessions, Get .torrent will fail"
         fi
     fi

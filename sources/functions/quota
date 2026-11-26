@@ -5,10 +5,12 @@ function quota_sudoers() {
     local tmp=/etc/sudoers.d/quota.tmp
     local rules="Cmnd_Alias   QUOTA = /usr/bin/quota
 
-www-data     ALL = (ALL) NOPASSWD: QUOTA"
+www-data     ALL = (ALL) NOPASSWD: QUOTA
+rutorrent    ALL = (ALL) NOPASSWD: QUOTA"
+    # rutorrent: ruTorrent's PHP pool, whose diskspace plugin calls it at every refresh.
     # keep the web server's frequent sudo calls out of the auth log where sudo allows it
     # (sudo-rs, on Ubuntu 26.04, does not know these settings)
-    printf '%s\n' "Defaults:www-data !logfile" "Defaults:www-data !syslog" "Defaults:www-data !pam_session" "" "$rules" > "$tmp" && chmod 0440 "$tmp"
+    printf '%s\n' "Defaults:www-data !logfile" "Defaults:www-data !syslog" "Defaults:www-data !pam_session"         "Defaults:rutorrent !logfile" "Defaults:rutorrent !syslog" "Defaults:rutorrent !pam_session" "" "$rules" > "$tmp" && chmod 0440 "$tmp"
     local written=$?
     if [[ $written -eq 0 ]] && ! visudo -cqf "$tmp" > /dev/null 2>&1; then
         printf '%s\n' "$rules" > "$tmp"

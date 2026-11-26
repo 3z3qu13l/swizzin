@@ -1,4 +1,7 @@
 #!/bin/bash
+# rutorrent_web_account, rtorrent_socket_acl and rtorrent_session_acl
+#shellcheck source=sources/functions/rtorrent
+. /etc/swizzin/sources/functions/rtorrent
 
 function rutorrent_install() {
     apt_install sox geoip-database p7zip-full zip unzip php-bcmath
@@ -179,11 +182,17 @@ function rutorrent_perms() {
 }
 
 function _rutorrent_perms() {
-    local r=/srv/rutorrent g d u l t main_git="" theme=/srv/rutorrent/plugins/theme/themes/club-QuickBox theme_git="" probe tag
-    rutorrent_account || return 1
+    local r=/srv/rutorrent g d u l t main_git="" theme=/srv/rutorrent/plugins/theme/themes/club-QuickBox theme_git="" probe tag w
+    local xd=() xf=()
+    # www-data until nginx sends ruTorrent's PHP to its own pool: www-data is only removed once that works
+    w=$(rutorrent_web_account)
+    if [[ $w == rutorrent ]]; then
+        xd=(-x u:www-data,d:u:www-data)
+        xf=(-x u:www-data)
+    fi
     # without ACLs, share/users would end up closed to ruTorrent: nothing is changed
     probe=$(mktemp -p "$r") || return 1
-    if ! setfacl -m u:rutorrent:r "$probe" 2>> "$log"; then
+    if ! setfacl -m "u:$w:r" "$probe" 2>> "$log"; then
         rm -f "$probe"
         echo_warn "ACLs do not work on $r, ruTorrent keeps its permissions"
         return 1
@@ -233,15 +242,15 @@ function _rutorrent_perms() {
         d=${d%/}
         [[ -d $d && ! -L $d ]] || continue
         u=${d##*/}
-        local acl="u:rutorrent:rX"
+        local acl="u:$w:rX"
         if id -u "$u" > /dev/null 2>&1; then acl+=",u:$u:rX"; fi
         if ! { find "$d" ! -type l \( -type d -o -links 1 \) -exec chmod u=rwX,g=rX,o= {} + &&
-            find "$d" -type d -exec setfacl -P -x u:www-data,d:u:www-data -m "$acl,${acl//u:/d:u:}" {} + &&
-            find "$d" -type f -links 1 -exec setfacl -P -x u:www-data -m "$acl" {} +; }; then
+            find "$d" -type d -exec setfacl -P "${xd[@]}" -m "$acl,${acl//u:/d:u:}" {} + &&
+            find "$d" -type f -links 1 -exec setfacl -P "${xf[@]}" -m "$acl" {} +; }; then
             echo_warn "Could not give ruTorrent and $u access to $d"
         fi
     done
-    # both write the profile: rutorrent from the web, the user's rTorrent through initplugins.php
+    # both write the profile: ruTorrent's PHP from the web, the user's rTorrent through initplugins.php
     sed -i 's/^\(\s*\$profileMask\s*=\s*\)0777;/\10770;/' "$r/conf/config.php"
 
     # share first, root's and closed to others: share/users can then no longer be swapped for a link
@@ -255,7 +264,7 @@ function _rutorrent_perms() {
     mkdir -p "$r/share/users"
     chown -h root:root "$r/share/users"
     chmod 1755 "$r/share/users"
-    setfacl -P -x u:www-data -m u:rutorrent:rwx "$r/share/users" || echo_warn "Could not let ruTorrent create its profiles"
+    setfacl -P "${xf[@]}" -m "u:$w:rwx" "$r/share/users" || echo_warn "Could not let ruTorrent create its profiles"
     for u in $(_get_user_list); do
         id -u "$u" > /dev/null 2>&1 || continue
         d=$r/share/users/$u
@@ -267,21 +276,24 @@ function _rutorrent_perms() {
             echo_warn "Could not create the ruTorrent profile of $u"
         fi
     done
+    # before root changes owners in the profiles: a link swapped into the path is then not followed
+    _rutorrent_profiles_nosymfollow
     for d in "$r"/share/users/*; do
         [[ -L $d ]] && rm -f "$d"
         [[ -d $d ]] || continue
         u=${d##*/}
-        _rutorrent_profile_from_www_data "$u" "$d"
-        # the user's first: what www-data had becomes theirs, and opens the profile to rutorrent
+        [[ $w == rutorrent ]] && _rutorrent_profile_from_www_data "$u" "$d"
+        # the user's first: what www-data had becomes theirs, and opens the profile to ruTorrent
         if id -u "$u" > /dev/null 2>&1; then
-            _rutorrent_profile_acl "$u" "$u" "$d" || echo_warn "Could not share the ruTorrent profile $d between $u and ruTorrent"
+            _rutorrent_profile_acl "$w" "$u" "$u" "$d" || echo_warn "Could not share the ruTorrent profile $d between $u and ruTorrent"
         fi
-        _rutorrent_profile_acl rutorrent "$u" "$d" || echo_warn "Could not close the ruTorrent profile $d to other users"
+        _rutorrent_profile_acl "$w" "$w" "$u" "$d" || echo_warn "Could not close the ruTorrent profile $d to other users"
     done
     # what www-data wrote in share outside the profiles (hl-init, the shared settings and torrents folders)
-    (cd / && find -P "$r/share" -path "$r/share/users/*" -type d -prune -o -user www-data \( -type d -o -type l -o -type f -links 1 \) \
-        -execdir chown -h rutorrent:rutorrent {} +) 2>> "$log"
-    _rutorrent_profiles_nosymfollow
+    if [[ $w == rutorrent ]]; then
+        (cd / && find -P "$r/share" -path "$r/share/users/*" -type d -prune -o -user www-data \( -type d -o -type l -o -type f -links 1 \) \
+            -execdir chown -h rutorrent:rutorrent {} +) 2>> "$log"
+    fi
 
     git config --global --unset-all safe.directory '^/srv/rutorrent/?$' 2> /dev/null
     # also retried at the next run after a failed fetch, from the tag root kept
@@ -403,25 +415,33 @@ function rutorrent_profiles_unmount() {
     ! mountpoint -q "$d"
 }
 
-# Sets, as $1, the ACL on the files $1 owns in the profile $3 of user $2: rutorrent and $2 only, www-data's
-# entries removed. A file with other hard links is left out
+# Sets, as $2, the ACL on the files $2 owns in the profile $4 of user $3: ruTorrent's account $1 and $3 only,
+# www-data's entries removed once $1 is rutorrent. A file with other hard links is left out
 function _rutorrent_profile_acl() {
-    local owner=$1 u=$2 d=$3 acl="u:rutorrent:rwX" dacl="d:u:rutorrent:rwX" run
+    local w=$1 owner=$2 u=$3 d=$4 acl="u:$1:rwX" dacl="d:u:$1:rwX" run xd=() xf=()
+    if [[ $w == rutorrent ]]; then
+        xd=(-x u:www-data,d:u:www-data)
+        xf=(-x u:www-data)
+    fi
     if id -u "$u" > /dev/null 2>&1; then
         acl+=",u:$u:rwX"
         dacl+=",d:u:$u:rwX"
     fi
     acl+=",g::-,o::-"
     dacl+=",d:g::-,d:o::-"
-    if [[ $owner == rutorrent ]]; then run=(_as_rutorrent); else run=(runuser -u "$owner" --); fi
-    (cd / && "${run[@]}" find -P "$d" -user "$owner" \( -type d -exec setfacl -P -x u:www-data,d:u:www-data -m "$acl,$dacl" {} + \
-        -o -type f -links 1 -exec setfacl -P -x u:www-data -m "$acl" {} + \)) 2>> "$log"
+    case $owner in
+        rutorrent) run=(_as_rutorrent) ;;
+        www-data) run=(_as_www_data) ;;
+        *) run=(runuser -u "$owner" --) ;;
+    esac
+    (cd / && "${run[@]}" find -P "$d" -user "$owner" \( -type d -exec setfacl -P "${xd[@]}" -m "$acl,$dacl" {} + \
+        -o -type f -links 1 -exec setfacl -P "${xf[@]}" -m "$acl" {} + \)) 2>> "$log"
 }
 
 # What www-data created in profile $2 of user $1 before ruTorrent had its own account goes to that user
 # (to rutorrent for a profile with no account): www-data must no longer reach it, and ruTorrent's
 # diagnostics read the owner's mode bits, not the ACL. Only root can give a file away: -execdir runs chown
-# from the folder find is in, and nosymfollow keeps links out of the path. A file with other hard links
+# from the folder find is in, and nosymfollow keeps links out of the path (protected_hardlinks keeps others'). A file with other hard links
 # is left to www-data and reported
 function _rutorrent_profile_from_www_data() {
     local u=$1 d=$2 to=rutorrent
@@ -431,10 +451,20 @@ function _rutorrent_profile_from_www_data() {
 }
 
 # ruTorrent's PHP runs as its own account, in its own PHP-FPM pool: a bug in another PHP app (www-data) no
-# longer reads the profiles, a bug in ruTorrent no longer reaches the other apps' files
+# longer reads the profiles, a bug in ruTorrent no longer reaches the other apps' files. An account of that
+# name made by someone else, with a login, is not used: it would get every user's rTorrent
 function rutorrent_account() {
-    id -u rutorrent > /dev/null 2>&1 && return 0
-    useradd --system --user-group --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin rutorrent >> "$log" 2>&1 || {
+    local uid shell max
+    if uid=$(id -u rutorrent 2> /dev/null); then
+        max=$(awk '$1 == "SYS_UID_MAX" {print $2}' /etc/login.defs 2> /dev/null)
+        shell=$(getent passwd rutorrent | cut -d: -f7)
+        if ((uid < ${max:-999})) && [[ $shell =~ /(nologin|false)$ ]]; then return 0; fi
+        echo_error "The account rutorrent exists and is not a system account without login: ruTorrent cannot run as it"
+        return 1
+    fi
+    local group=(--user-group)
+    getent group rutorrent > /dev/null && group=(-g rutorrent)
+    useradd --system "${group[@]}" --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin rutorrent >> "$log" 2>&1 || {
         echo_error "Could not create the rutorrent account"
         return 1
     }
@@ -445,35 +475,45 @@ function _as_rutorrent() {
 }
 
 # The pool, in the PHP version swizzin uses (php_service_version). Its socket is outside /run/php/, where
-# update/nginx.sh points every app at the current version: nginx (www-data) alone connects, through the
-# group. Another version's pool would take the same socket: it is removed. php-fpm checks the result
-# before it is restarted, a pool it refuses would stop every PHP app
+# update/nginx.sh points every app at the current version, and only nginx (www-data, named in its ACL)
+# connects. Another version's pool would take the same socket: it is removed, and that version restarted
+# first, as its master deletes the socket when it stops. php-fpm checks the result before it is restarted,
+# a pool it refuses would stop every PHP app.
+# The pools share one opcache: without validate_permission, a script one pool cached is served to the
+# other even if it cannot read the file
 function rutorrent_php_pool() {
-    local v f o new old=()
+    local v f o ini restart="" old=()
     v=$(php_service_version)
     f=/etc/php/$v/fpm/pool.d/rutorrent.conf
-    if [[ -z $v || ! -d /etc/php/$v/fpm/pool.d ]]; then
-        echo_warn "No PHP-FPM pool folder for PHP ${v:-?}, ruTorrent has no PHP pool"
+    ini=/etc/php/$v/fpm/conf.d/99-swizzin-rutorrent.ini
+    if [[ -z $v || ! -d /etc/php/$v/fpm/pool.d || ! -d /etc/php/$v/fpm/conf.d ]]; then
+        echo_warn "No PHP-FPM $v configuration folder, ruTorrent has no PHP pool"
         return 1
     fi
     rutorrent_account || return 1
-    new=$(_rutorrent_php_pool_conf)
-    for o in /etc/php/*/fpm/pool.d/rutorrent.conf; do
-        [[ -f $o && $o != "$f" ]] || continue
+    for o in /etc/php/*/fpm/pool.d/rutorrent.conf /etc/php/*/fpm/conf.d/99-swizzin-rutorrent.ini; do
+        [[ -f $o && $o != "$f" && $o != "$ini" ]] || continue
         rm -f "$o"
         o=${o#/etc/php/}
         old+=("php${o%%/*}-fpm")
+        restart=1
     done
-    if [[ ! -f $f || $(< "$f") != "$new" ]]; then
-        echo "$new" > "$f"
+    if ((${#old[@]})); then
+        readarray -t old < <(printf '%s\n' "${old[@]}" | sort -u)
+        systemctl try-restart "${old[@]}" >> "$log" 2>&1
+    fi
+    if [[ ! -f $f || $(< "$f") != "$(_rutorrent_php_pool_conf)" || ! -f $ini || $(< "$ini") != "$(_rutorrent_php_ini)" ]]; then
+        _rutorrent_php_pool_conf > "$f"
+        _rutorrent_php_ini > "$ini"
         if ! "php-fpm$v" -t >> "$log" 2>&1; then
-            rm -f "$f"
+            rm -f "$f" "$ini"
             echo_warn "PHP-FPM $v refused ruTorrent's pool, it was removed"
             return 1
         fi
-        restart_php_fpm
+        restart=1
     fi
-    ((${#old[@]})) && systemctl try-restart "${old[@]}" >> "$log" 2>&1
+    [[ -S /run/php-fpm-rutorrent.sock ]] || restart=1
+    [[ -n $restart ]] && restart_php_fpm
     for _ in {1..20}; do
         [[ -S /run/php-fpm-rutorrent.sock ]] && return 0
         sleep 0.5
@@ -490,8 +530,9 @@ user = rutorrent
 group = rutorrent
 listen = /run/php-fpm-rutorrent.sock
 listen.owner = root
-listen.group = www-data
+listen.group = root
 listen.mode = 0660
+listen.acl_users = www-data
 pm = ondemand
 pm.max_children = 5
 pm.process_idle_timeout = 60s
@@ -499,12 +540,21 @@ env[PATH] = /usr/local/bin:/usr/bin:/bin
 EOF
 }
 
-# True when the pool or nginx's way to it is missing, or was written for another PHP version
+function _rutorrent_php_ini() {
+    cat << 'EOF'
+; written by swizzin: ruTorrent has its own pool, whose opcache is shared with the other PHP apps
+opcache.validate_permission = 1
+EOF
+}
+
+# True when the pool, its socket or nginx's way to it is missing, or was written for another PHP version
 function rutorrent_php_needed() {
     local v
     v=$(php_service_version)
     [[ ! -f /etc/php/$v/fpm/pool.d/rutorrent.conf || $(< "/etc/php/$v/fpm/pool.d/rutorrent.conf") != "$(_rutorrent_php_pool_conf)" ]] ||
-        [[ -n $(find /etc/php -path "/etc/php/$v" -prune -o -path '*/fpm/pool.d/rutorrent.conf' -print -quit 2> /dev/null) ]] ||
+        [[ ! -f /etc/php/$v/fpm/conf.d/99-swizzin-rutorrent.ini || $(< "/etc/php/$v/fpm/conf.d/99-swizzin-rutorrent.ini") != "$(_rutorrent_php_ini)" ]] ||
+        [[ -n $(find /etc/php -path "/etc/php/$v" -prune -o \( -path '*/fpm/pool.d/rutorrent.conf' -o -path '*/fpm/conf.d/99-swizzin-rutorrent.ini' \) -print -quit 2> /dev/null) ]] ||
+        [[ ! -S /run/php-fpm-rutorrent.sock ]] ||
         { [[ -f /etc/nginx/apps/rutorrent.conf ]] && ! grep -q 'fastcgi_pass unix:/run/php-fpm-rutorrent.sock;' /etc/nginx/apps/rutorrent.conf; }
 }
 
@@ -528,8 +578,7 @@ function rutorrent_nginx_php() {
 }
 
 # What ruTorrent's PHP needs of user $1, as rutorrent: list the home (folder picker), drive rTorrent through
-# its socket, read its session (Get .torrent) and send its downloads (data, file manager). Needs the
-# functions of sources/functions/rtorrent
+# its socket, read its session (Get .torrent) and send its downloads (data, file manager)
 function rutorrent_user_access() {
     local u=$1 out
     id -u "$u" > /dev/null 2>&1 && id -u rutorrent > /dev/null 2>&1 || return 0
@@ -544,31 +593,37 @@ function rutorrent_user_access() {
 function rutorrent_user_access_needed() {
     id -u "$1" > /dev/null 2>&1 && id -u rutorrent > /dev/null 2>&1 || return 1
     ! getfacl -cp "/home/$1" 2> /dev/null | grep -q '^user:rutorrent:r-x' ||
-        ! grep -q 'u:rutorrent:x' "/etc/tmpfiles.d/$1.conf" 2> /dev/null
+        ! grep -q 'u:rutorrent:x' "/etc/tmpfiles.d/$1.conf" 2> /dev/null ||
+        { [[ -d /home/$1/.sessions ]] && ! getfacl -cp "/home/$1/.sessions" 2> /dev/null | grep -q "^default:user:$(rutorrent_web_account):r"; }
 }
 
 # box remove rutorrent: the pool, then every entry the account was given, then the account. A uid given to
-# a later account would otherwise inherit them. As each user, who owns what was changed
+# a later account would otherwise inherit them. As each user, who owns what was changed; a folder linked
+# elsewhere got its entries on its target
 function rutorrent_remove_account() {
-    local u p r
-    rm -f /etc/php/*/fpm/pool.d/rutorrent.conf
-    restart_php_fpm
+    local u p r units=()
+    rm -f /etc/php/*/fpm/pool.d/rutorrent.conf /etc/php/*/fpm/conf.d/99-swizzin-rutorrent.ini
+    readarray -t units < <(systemctl list-units --all --no-legend --plain 'php*-fpm.service' 2> /dev/null | awk '{print $1}')
+    ((${#units[@]})) && systemctl try-restart "${units[@]}" >> "$log" 2>&1
     id -u rutorrent > /dev/null 2>&1 || return 0
     for u in $(_get_user_list); do
         id -u "$u" > /dev/null 2>&1 || continue
         (
             cd / || exit
-            for p in "/home/$u" "/home/$u/.sessions" "/run/$u" "/home/$u/torrents"; do
-                [[ -d $p ]] && runuser -u "$u" -- setfacl -P -x u:rutorrent,d:u:rutorrent "$p"
+            for p in "/home/$u" "/home/$u/.sessions" "/run/$u" "/home/$u/torrents" "/home/$u/torrents/rtorrent"; do
+                r=$(runuser -u "$u" -- readlink -f "$p") || continue
+                [[ -d $r && $(stat -c %U "$r") == "$u" ]] || continue
+                runuser -u "$u" -- setfacl -P -x u:rutorrent,d:u:rutorrent "$r"
+                case $p in
+                    */.sessions) runuser -u "$u" -- find "$r" -maxdepth 1 -type f -user "$u" -exec setfacl -x u:rutorrent {} + ;;
+                    */torrents/rtorrent) runuser -u "$u" -- find "$r" -xdev ! -type l -user "$u" \( -type d -exec setfacl -P -x u:rutorrent,d:u:rutorrent {} + \
+                        -o -exec setfacl -P -x u:rutorrent {} + \) ;;
+                esac
             done
             [[ -S /run/$u/.rtorrent.sock ]] && runuser -u "$u" -- setfacl -P -x u:rutorrent "/run/$u/.rtorrent.sock"
-            [[ -d /home/$u/.sessions ]] && runuser -u "$u" -- find "/home/$u/.sessions" -maxdepth 1 -type f -user "$u" -exec setfacl -x u:rutorrent {} +
-            r=$(readlink -f "/home/$u/torrents/rtorrent")
-            [[ -d $r ]] && runuser -u "$u" -- find "$r" -xdev ! -type l -user "$u" \( -type d -exec setfacl -P -x u:rutorrent,d:u:rutorrent {} + \
-                -o -exec setfacl -P -x u:rutorrent {} + \)
         ) >> "$log" 2>&1
     done
-    userdel rutorrent >> "$log" 2>&1
+    userdel rutorrent >> "$log" 2>&1 || echo_warn "Could not remove the rutorrent account, see $log"
     for u in $(_get_user_list); do
         [[ -f /etc/tmpfiles.d/$u.conf ]] && rtorrent_socket_acl "$u"
     done
@@ -576,14 +631,14 @@ function rutorrent_remove_account() {
 
 # True when rutorrent_perms has something to do
 function rutorrent_perms_needed() {
-    local r=/srv/rutorrent
+    local r=/srv/rutorrent w
     [[ -d $r ]] || return 1
+    w=$(rutorrent_web_account)
     [[ -n $(find "$r" -path "$r/share" -prune -o \( ! -user root -o -type f -links +1 \) -print -quit) ]] ||
         [[ $(stat -c %U "$r/share" 2> /dev/null) != root || $(stat -c %U "$r/share/users" 2> /dev/null) != root || ! -k $r/share/users ]] ||
-        ! id -u rutorrent > /dev/null 2>&1 ||
-        ! getfacl -cp "$r/share/users" 2> /dev/null | grep -q '^user:rutorrent:rwx' ||
-        getfacl -cp "$r/share/users" 2> /dev/null | grep -q '^user:www-data:' ||
-        [[ -n $(find "$r/share" -user www-data ! \( -type f -links +1 \) -print -quit 2> /dev/null) ]] ||
+        ! getfacl -cp "$r/share/users" 2> /dev/null | grep -q "^user:$w:rwx" ||
+        { [[ $w == rutorrent ]] && { getfacl -cp "$r/share/users" 2> /dev/null | grep -q '^user:www-data:' ||
+            [[ -n $(find "$r/share" -user www-data \( -type d -o -type l -o -type f -links 1 \) -print -quit 2> /dev/null) ]]; }; } ||
         [[ -f /install/.rutorrent.tag ]] ||
         grep -qE '^\s*\$profileMask\s*=\s*0777;' "$r/conf/config.php" ||
         { ! _rutorrent_nosymfollow_on && [[ $(cat /install/.rutorrent.nosymfollow.failed 2> /dev/null) != "$(uname -r)" ]]; }
