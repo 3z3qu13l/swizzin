@@ -729,11 +729,11 @@ function qbittorrent_user_config() {
         QBTWP="WebUI\Password_PBKDF2=\"@ByteArray($hashed)\""
     fi
 
-    usermod -a -G ${user} www-data 2>> $log
     port=$(port 10000 11000)
     # folders and config are made by the user, never by root: a symlink the user put in their home
     # only reaches their own files, where a root mkdir, chown or write would follow it anywhere
     runuser -u "${user}" -- mkdir -p /home/${user}/.config/qBittorrent /home/${user}/torrents/qbittorrent
+    _www_acl_served "${user}" torrents/qbittorrent >> $log 2>&1 || echo_warn "Could not let nginx read /home/${user}/torrents/qbittorrent"
     runuser -u "${user}" -- rm -f /home/${user}/.config/qBittorrent/qBittorrent.conf
     runuser -u "${user}" -- tee /home/${user}/.config/qBittorrent/qBittorrent.conf > /dev/null << QBTCONF || {
 [BitTorrent]

@@ -633,7 +633,7 @@ DHL
         mkdir -p /home/${u}/torrents/deluge
         chown ${u}: /home/${u}/torrents
         chown ${u}: /home/${u}/torrents/deluge
-        usermod -a -G ${u} www-data 2>> "$log"
+        _www_acl_served "${u}" torrents/deluge >> "$log" 2>&1 || echo_warn "Could not let nginx read /home/${u}/torrents/deluge"
         echo_progress_done "Configured for $u"
     done
 }

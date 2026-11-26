@@ -245,7 +245,7 @@ SUD
 export -f _write_user_sudoers
 
 # Web login files: nginx reads them as the www-data user, the panel also reads /etc/htpasswd as swizzin.
-# Every swizzin user is in the www-data group, so the group gets nothing and each reader is named in an ACL.
+# Older installs put every swizzin user in the www-data group, so the group gets nothing and each reader is named in an ACL.
 # The ACL and the mode are set in one step: a file closed without its ACL would lock everyone out of the web
 # shellcheck disable=SC2154 # log is exported by globals.sh
 function _htpasswd_perms() {
@@ -263,3 +263,31 @@ function _htpasswd_perms() {
     done
 }
 export -f _htpasswd_perms
+
+# Homes are 750 and www-data (nginx, PHP) is in no user's group: it only crosses the home, and so does
+# the panel (group swizzin), to read the free space of disks mounted inside it.
+# setfacl runs as the user: a symlink they placed in their home never makes root change another file
+function _home_acl() {
+    local acl=u:www-data:x
+    if getent group swizzin > /dev/null; then acl+=,g:swizzin:x; fi
+    (cd / && runuser -u "$1" -- setfacl -P -m "$acl" "/home/$1")
+}
+export -f _home_acl
+
+# A folder nginx lists for its user ($2, relative to the home, e.g. torrents/rtorrent): www-data crosses
+# its parents and reads it, and the default entry keeps what is downloaded there later readable.
+# A missing folder is skipped, there is nothing to serve
+function _www_acl_served() {
+    local u=$1 dir=/home/$1/$2 parent
+    [[ -d $dir ]] || return 0
+    parent=${dir%/*}
+    (
+        cd / || exit 1
+        while [[ $parent == "/home/$u" || $parent == "/home/$u/"* ]]; do
+            runuser -u "$u" -- setfacl -P -m u:www-data:x "$parent" || exit 1
+            parent=${parent%/*}
+        done
+        runuser -u "$u" -- setfacl -P -R -m u:www-data:rX,d:u:www-data:rX "$dir"
+    )
+}
+export -f _www_acl_served

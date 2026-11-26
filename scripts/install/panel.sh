@@ -66,7 +66,9 @@ echo_progress_done
 echo_progress_start "Setting permissions"
 chown -R swizzin: /opt/swizzin
 chown -R swizzin: /opt/.venv/swizzin
-setfacl -m g:swizzin:rx /home/*
+for u in $(_get_user_list); do
+    _home_acl "$u" >> ${log} 2>&1 || echo_warn "Could not let the panel cross /home/$u, its disk stats may miss mounts inside it"
+done
 # the panel checks logins against /etc/htpasswd, which only root and nginx can read
 setfacl -m u:swizzin:r /etc/htpasswd
 echo_progress_done

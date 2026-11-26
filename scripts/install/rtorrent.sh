@@ -51,8 +51,8 @@ function _makedirs() {
     mkdir -p /home/${user}/.sessions
     mkdir -p /home/${user}/rwatch
     chown -R ${user}:${user} /home/${user}/{torrents,.sessions,rwatch} 2>> $log
-    usermod -a -G www-data ${user} 2>> $log
-    usermod -a -G ${user} www-data 2>> $log
+    _www_acl_served "${user}" torrents/rtorrent >> $log 2>&1 || echo_warn "Could not let nginx read /home/${user}/torrents/rtorrent"
+    rtorrent_socket_acl "${user}"
 }
 
 _systemd() {

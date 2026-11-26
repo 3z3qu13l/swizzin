@@ -460,3 +460,17 @@ function remove_rtorrent_legacy() {
     cd -
     rm -rf /tmp/libtorrent
 }
+
+# ruTorrent (PHP) and nginx talk to the socket as www-data, which is in no user's group: a named ACL on
+# /run/<user>, kept by tmpfiles at boot, whose default entry the socket recreated at each start inherits.
+# The socket already there is changed as the user: they could have swapped it for a link to any file
+function rtorrent_socket_acl() {
+    local u=$1 line
+    line="a+ /run/${u} - - - - u:www-data:x,d:u:www-data:rw"
+    [[ -f /etc/tmpfiles.d/${u}.conf ]] || echo "D /run/${u} 0750 ${u} ${u} -" > /etc/tmpfiles.d/"${u}".conf
+    grep -qxF "$line" /etc/tmpfiles.d/"${u}".conf 2> /dev/null || echo "$line" >> /etc/tmpfiles.d/"${u}".conf
+    systemd-tmpfiles --create /etc/tmpfiles.d/"${u}".conf >> "$log" 2>&1
+    if [[ -S /run/${u}/.rtorrent.sock ]]; then
+        (cd / && runuser -u "$u" -- setfacl -P -m u:www-data:rw /run/"${u}"/.rtorrent.sock) >> "$log" 2>&1
+    fi
+}

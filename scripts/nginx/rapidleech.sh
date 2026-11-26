@@ -7,7 +7,10 @@ MASTER=$(cut -d: -f1 < /root/.master.info)
 phpversion=$(php_service_version)
 sock="php${phpversion}-fpm"
 
-usermod -a -G ${MASTER} www-data
+# PHP (www-data) reads the app and writes its configs and downloads
+_www_acl_served "${MASTER}" rapidleech >> "$log" 2>&1 &&
+    (cd / && runuser -u "${MASTER}" -- setfacl -P -R -m u:www-data:rwX,d:u:www-data:rwX /home/"${MASTER}"/rapidleech/configs /home/"${MASTER}"/rapidleech/files) >> "$log" 2>&1 ||
+    echo_warn "Could not let nginx use /home/${MASTER}/rapidleech"
 
 if [[ ! -f /etc/nginx/apps/rapidleech.conf ]]; then
     cat > /etc/nginx/apps/rapidleech.conf << RAP

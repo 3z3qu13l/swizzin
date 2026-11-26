@@ -336,7 +336,7 @@ function _adduser() {
 
     echo "$user:$pass" > /root/"${user}".info
     if [[ $existing != "true" ]]; then
-        useradd "${user}" -m -G www-data -s /bin/bash >> $log 2>&1
+        useradd "${user}" -m -s /bin/bash >> $log 2>&1
     fi
     chpasswd <<< "${user}:${pass}" >> $log 2>&1
     if [[ -f /etc/htpasswd ]]; then
@@ -358,7 +358,7 @@ function _adduser() {
     chown "$user": /home/"$user"/.config
     chmod 750 /home/"${user}"
 
-    if [[ -f /install/.panel.lock ]]; then setfacl -m g:swizzin:rx /home/"${user}"; fi
+    _home_acl "$user" >> $log 2>&1 || echo_warn "Could not set an ACL on /home/${user}, its web download listings will be refused"
     echo "D /var/run/${user} 0750 ${user} ${user} -" >> /etc/tmpfiles.d/"${user}".conf
     systemd-tmpfiles /etc/tmpfiles.d/"${user}".conf --create >> $log 2>&1
 
@@ -462,7 +462,7 @@ function _deluser() {
 
     lsof -t /home/${user} | xargs -I % kill -9 %
     # deluser dropped --force (Debian 13) and then removes nothing; userdel -f works on every release.
-    # It leaves the group while www-data is in it, groupdel below removes it. The home is removed below.
+    # It leaves the group while another account (Plex, Jellyfin...) is in it, groupdel below removes it. The home is removed below.
     # A process, crontab or mailbox left behind would belong to the next account given the same uid or name
     uid=$(id -u "${user}")
     crontab -r -u "${user}" >> $log 2>&1
