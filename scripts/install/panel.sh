@@ -67,6 +67,8 @@ echo_progress_start "Setting permissions"
 chown -R swizzin: /opt/swizzin
 chown -R swizzin: /opt/.venv/swizzin
 setfacl -m g:swizzin:rx /home/*
+# the panel checks logins against /etc/htpasswd, which only root and nginx can read
+setfacl -m u:swizzin:r /etc/htpasswd
 echo_progress_done
 
 echo_progress_start "Configuring panel"
