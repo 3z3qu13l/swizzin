@@ -1,5 +1,5 @@
 #!/bin/bash
-# swizdash upgrade, installs the latest release
+# swizdash upgrade, installs the release pinned in sources/functions/swizdash
 
 if [[ ! -f /install/.swizdash.lock ]]; then
     echo_error "swizdash is not installed"
