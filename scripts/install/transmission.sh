@@ -46,6 +46,10 @@ _setenv_transmission() {
     [[ -z $incomplete_dir_enabled ]] && export incomplete_dir_enabled="false"
     echo_log_only "incomplete_dir_enabled = $incomplete_dir_enabled"
 
+    # behind nginx, only nginx needs to reach it; without nginx this port is the only way in
+    if [[ -f /install/.nginx.lock ]]; then rpc_bind_address=127.0.0.1; else rpc_bind_address=0.0.0.0; fi
+    echo_log_only "rpc_bind_address = $rpc_bind_address"
+
     [[ -z $rpc_whitelist ]] && export rpc_whitelist='*.*.*.*'
     echo_log_only "rpc_whitelist = $rpc_whitelist"
 
@@ -155,7 +159,7 @@ _mkconf_transmission() {
     "ratio-limit-enabled": false,
     "rename-partial-files": true,
     "rpc-authentication-required": true,
-    "rpc-bind-address": "0.0.0.0",
+    "rpc-bind-address": "${rpc_bind_address}",
     "rpc-enabled": true,
     "rpc-host-whitelist": "",
     "rpc-host-whitelist-enabled": true,
