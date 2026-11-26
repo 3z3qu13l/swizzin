@@ -105,6 +105,11 @@ function password_check() {
     fi
     # If password was empty then it needs to be generated
     if [[ -z "${pass}" ]]; then
+        # a generated password is only shown on screen: without a terminal nobody would ever see it
+        if _no_terminal; then
+            echo_error "No password given and no terminal to show a generated one."
+            exit 1
+        fi
         echo_progress_start "Generating password"
         pass="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)"
         whiptail --title "Generated password" --msgbox "The generated password for $user is:\n$pass \n\nNote this down as this will not be shown again after it is hidden" --ok-button="Hide" 10 70

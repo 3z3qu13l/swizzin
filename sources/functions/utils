@@ -24,12 +24,10 @@ function install_rar() {
             srcdir=$(mktemp -d)
             if ! wget -q "$srcurl" -O "$srcdir/unrarsrc.tar.gz" >> "$log" 2>&1 ||
                 ! echo "$srcsha256  $srcdir/unrarsrc.tar.gz" | sha256sum -c >> "$log" 2>&1; then
-                rm -rf "$srcdir"
-                echo_error "Failed to download or verify the unrar source"
-                exit 1
-            fi
-            tar -xzf "$srcdir/unrarsrc.tar.gz" -C "$srcdir" >> "$log" 2>&1
-            if ! make -C "$srcdir/unrar" -f makefile >> "$log" 2>&1; then
+                # unrar is optional, like a failed compile below the install goes on without it
+                echo_warn "Failed to download or verify the unrar source\nInstallation will continue"
+            elif ! tar -xzf "$srcdir/unrarsrc.tar.gz" -C "$srcdir" >> "$log" 2>&1 ||
+                ! make -C "$srcdir/unrar" -f makefile >> "$log" 2>&1; then
                 echo_warn "Failed to compile unrar. Please investigate\nInstallation will continue"
             else
                 install -v -m755 "$srcdir/unrar/unrar" /usr/bin >> "$log"
