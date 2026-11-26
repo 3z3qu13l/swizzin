@@ -39,6 +39,37 @@ if [ -f /install/.transmission.lock ]; then
         echo_progress_done
     done
 
+    # The web interface listened on every address (swizzin's old default), behind its own password only:
+    # behind nginx it only needs to answer nginx, as qBittorrent and Deluge already do. Done once, and
+    # only on that default: an address an admin chose, or sets back later, is kept
+    if [[ -f /install/.nginx.lock && ! -f /install/.transmission-rpc-local.done ]]; then
+        . /etc/swizzin/sources/functions/transmission
+        moved=()
+        for u in "${users[@]}"; do
+            conf="/home/${u}/.config/transmission-daemon/settings.json"
+            [[ -f $conf ]] || continue
+            addr=$(runuser -u "$u" -- jq -r '.["rpc-bind-address"] // .rpc_bind_address // "0.0.0.0"' "$conf" 2> /dev/null) || continue
+            [[ $addr == 0.0.0.0 ]] || continue
+            echo_progress_start "Making the Transmission web interface of $u answer only through nginx"
+            active=$(systemctl is-active transmission@"$u")
+            systemctl stop transmission@"$u"
+            if transmission_rpc_local "$u"; then
+                moved+=("$u")
+            else
+                echo_warn "Could not make the Transmission web interface of $u listen on 127.0.0.1 only"
+            fi
+            # activating: a restart loop the stop above interrupted
+            if [[ $active == "active" || $active == "activating" || $active == "reloading" ]]; then
+                systemctl start transmission@"$u"
+            fi
+            echo_progress_done
+        done
+        if ((${#moved[@]})); then
+            echo_info "Transmission (${moved[*]}) no longer answers on its port from other machines. Remote apps use https://<this server>/transmission/rpc with the swizzin user and password, apps on this server keep 127.0.0.1:<port>"
+        fi
+        touch /install/.transmission-rpc-local.done
+    fi
+
     # Ubuntu 26.04+: the AppArmor profile blocks every user's folders
     if [[ -f /etc/apparmor.d/transmission ]]; then
         . /etc/swizzin/sources/functions/transmission

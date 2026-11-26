@@ -4,6 +4,8 @@
 # copyright 2020 swizzin.ltd
 
 users=($(cut -d: -f1 < /etc/htpasswd))
+#shellcheck source=sources/functions/transmission
+. /etc/swizzin/sources/functions/transmission
 
 if [[ ! -f /etc/nginx/apps/tmsindex.conf ]]; then
     cat > /etc/nginx/apps/tmsindex.conf << DIN
@@ -70,6 +72,10 @@ for u in ${users[@]}; do
     done
 
     confpath="/home/${u}/.config/transmission-daemon/settings.json"
+    # nginx is now the way in: the web interface no longer answers on every address
+    if [[ -f $confpath ]] && ! transmission_rpc_is_local "$u" && ! transmission_rpc_local "$u"; then
+        echo_warn "Could not make the Transmission web interface of $u listen on 127.0.0.1 only"
+    fi
     if [[ ! -f /etc/nginx/conf.d/${u}.transmission.conf ]]; then
         # read as the user, who writes this file: a link must not reach what only root reads, and
         # anything but a number would be written into nginx's config

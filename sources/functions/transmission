@@ -30,6 +30,29 @@ function _get_next_port_from_json() {
     echo "$highestvalue"
 }
 
+# True when a user's Transmission web interface only listens on 127.0.0.1, for nginx. Transmission 4.1+ may
+# save the key as rpc_bind_address: every key present must say so
+function transmission_rpc_is_local() {
+    (cd / && runuser -u "$1" -- jq -e '[.["rpc-bind-address"], .rpc_bind_address | values] | length > 0 and all(. == "127.0.0.1")' \
+        "/home/$1/.config/transmission-daemon/settings.json" > /dev/null 2>&1)
+}
+
+# Sets the address a user's Transmission web interface listens on ($2, 127.0.0.1 by default). The daemon
+# must be stopped: it saves its settings over the file when it stops. Written as the user, whose file it is,
+# to a new file then renamed: a full disk leaves the old settings whole
+function transmission_rpc_local() {
+    local conf="/home/$1/.config/transmission-daemon/settings.json" addr=${2:-127.0.0.1} new tmp
+    new=$(cd / && runuser -u "$1" -- jq --arg a "$addr" '.["rpc-bind-address"] = $a | if has("rpc_bind_address") then .rpc_bind_address = $a else . end' "$conf") || return 1
+    [[ -n $new ]] || return 1
+    tmp=$(cd / && runuser -u "$1" -- mktemp "${conf%/*}/.settings.json.XXXXXX") || return 1
+    if printf '%s\n' "$new" | (cd / && runuser -u "$1" -- tee "$tmp" > /dev/null) &&
+        (cd / && runuser -u "$1" -- mv -f "$tmp" "$conf"); then
+        return 0
+    fi
+    (cd / && runuser -u "$1" -- rm -f "$tmp")
+    return 1
+}
+
 function whiptail_transmission_source() {
     if [[ -z $TRANSMISSION_SOURCE ]]; then
         distribution=$(lsb_release -is)
