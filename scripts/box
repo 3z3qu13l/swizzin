@@ -445,6 +445,8 @@ function _deluser() {
                 wireguard)
                     rm -rf /home/${user}/.wireguard
                     systemctl disable --now wg-quick@wg"$(id -u "$user")"
+                    # It holds the server private key and would be reused by the next account given this uid
+                    rm -f /etc/wireguard/wg"$(id -u "$user")".conf
                     ;;
                 *)
                     systemctl disable ${app}@${user}

@@ -26,7 +26,7 @@ for u in "${users[@]}"; do
         :
     else
         echo_info "Adding flood sudo permissions for $u"
-        sed -i "s/${USER}CMDS = /${USER}CMDS = \/bin\/systemctl stop flood@${user}, \/bin\/systemctl restart flood@${user}, \/bin\/systemctl start flood@${user}, /g" /etc/sudoers.d/$u
+        sed -i "s/${USER}CMDS = /${USER}CMDS = \/bin\/systemctl stop flood@${u}, \/bin\/systemctl restart flood@${u}, \/bin\/systemctl start flood@${u}, /g" /etc/sudoers.d/$u
     fi
 done
 
