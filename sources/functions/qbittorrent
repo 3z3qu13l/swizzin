@@ -767,6 +767,12 @@ WebUI\Username=${user}
 QBTCONF
 }
 
+# Prints a WebUI setting of a user: qBittorrent 5.3 moves WebUI\Key in [Preferences] to Key in [WebUI]
+function qbittorrent_webui_setting() {
+    # [WebUI] wins: the one 5.3 reads if a stale [Preferences] key is left behind
+    awk -F= -v k="$2" '/^\[/ {s = $0} s == "[WebUI]" && $1 == k {print $2; f = 1; exit} s == "[Preferences]" && $1 == "WebUI\\" k && !o {o = 1; v = $2} END {if (!f && o) print v}' "/home/$1/.config/qBittorrent/qBittorrent.conf" 2> /dev/null
+}
+
 function qbittorrent_chpasswd() {
     user=$1
     password=$2
