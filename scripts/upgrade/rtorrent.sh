@@ -72,7 +72,11 @@ done
 if rtorrent_installed_atleast 0.16; then
     echo_warn "rTorrent 0.16 renamed some commands. swizzin converted its own settings in each .rtorrent.rc, check any line you added yourself if rTorrent does not start."
     # ruTorrent handles the 0.16 commands from v5.3.9 and is never updated in place
-    rutorrent_tag=$(git -c safe.directory=/srv/rutorrent -C /srv/rutorrent describe --tags 2> /dev/null)
+    # root git only reads ruTorrent's clone once it is root's
+    #shellcheck source=sources/functions/rutorrent
+    . /etc/swizzin/sources/functions/rutorrent
+    if rutorrent_perms_needed; then rutorrent_perms; fi
+    rutorrent_tag=$(git -C /srv/rutorrent describe --tags 2> /dev/null)
     if [[ -n $rutorrent_tag ]] && dpkg --compare-versions "${rutorrent_tag#v}" lt 5.3.9; then
         echo_warn "ruTorrent ${rutorrent_tag} does not support rTorrent 0.16 (settings and some plugins will fail). Reinstall ruTorrent to get the latest version."
     fi

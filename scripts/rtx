@@ -8,15 +8,11 @@ function _check_for_rutorrent() {
     fi
 }
 
-function _check_rutorrent_safe_dir() {
-    if ! $(git config --global --get safe.directory | grep -q '/srv/rutorrent'); then
-        git config --global --add safe.directory /srv/rutorrent
-    fi
-}
 . /etc/swizzin/sources/globals.sh
 . /etc/swizzin/sources/functions/rutorrent
 _check_for_rutorrent
-_check_rutorrent_safe_dir
+# git runs as root on ruTorrent's clone below: only once it is root's
+if rutorrent_perms_needed; then rutorrent_perms; fi
 
 # ruTorrent is a git clone of the installed release: its own plugins and themes come back from it
 function _rtx_restore() {
@@ -270,7 +266,7 @@ FMCONF
                 ;;
         esac
     done
-    chown -R www-data: /srv/rutorrent/plugins
+    rutorrent_perms
     /usr/local/bin/swizzin/php-fpm-cli -r 'opcache_reset();'
     if [[ -z $arg ]]; then
         rm /tmp/results
@@ -369,7 +365,7 @@ function _itthemes() {
                 ;;
         esac
     done
-    chown -R www-data: /srv/rutorrent/plugins
+    rutorrent_perms
     /usr/local/bin/swizzin/php-fpm-cli -r 'opcache_reset();'
     if [[ -z $arg ]]; then
         rm /tmp/results
