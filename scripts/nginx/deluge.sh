@@ -18,7 +18,7 @@ if [[ ! -f /etc/nginx/apps/dindex.conf ]]; then
     cat > /etc/nginx/apps/dindex.conf << DIN
 location /deluge.downloads {
   alias /home/\$remote_user/torrents/deluge;
-  disable_symlinks if_not_owner from=/home/\$remote_user/torrents/deluge;
+  disable_symlinks if_not_owner from=/home/\$remote_user;
   include /etc/nginx/snippets/fancyindex.conf;
   auth_basic "What's the password?";
   auth_basic_user_file /etc/htpasswd;
