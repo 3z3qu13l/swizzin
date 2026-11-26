@@ -35,7 +35,8 @@ _adduser() {
     for user in "${users[@]}"; do
         echo_log_only "Adding user $user"
         pass=$(_get_user_password "$user")
-        echo -e "1\n$user\n$pass\n$pass" | calibre-server --userdb "$clbServerPath"/server-users.sqlite --manage-users || {
+        # the add subcommand takes the password verbatim on stdin; the interactive menu reads it from the tty
+        printf '%s' "$pass" | calibre-server --userdb "$clbServerPath"/server-users.sqlite --manage-users -- add "$user" || {
             echo_error "Adding $user to calibre server failed."
             exit 1
         }

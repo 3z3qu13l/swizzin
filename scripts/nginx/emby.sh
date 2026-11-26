@@ -13,6 +13,8 @@ if [[ ! -f /etc/nginx/apps/emby.conf ]]; then
 location /emby/ {
   rewrite /emby/(.*) /\$1 break;
   include /etc/nginx/snippets/proxy.conf;
+  proxy_set_header Upgrade \$http_upgrade;
+  proxy_set_header Connection \$http_connection;
   proxy_pass        http://127.0.0.1:8096/;
 }
 EMB

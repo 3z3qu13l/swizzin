@@ -25,8 +25,8 @@ function _install() {
         else
             port=$(shuf -i 6000-7000 -n 1)
             secureport=$(shuf -i 6000-7000 -n 1)
-            sed -i "s/ControlPort=6789/ControlPort=${port}/g" /home/$u/nzbget/nzbget.conf
-            sed -i "s/SecurePort=6791/SecurePort=${secureport}/g" /home/$u/nzbget/nzbget.conf
+            # as the user: after the chown the user owns ~/nzbget and could swap the config for a link
+            (cd / && runuser -u "$u" -- sed -i -e "s/ControlPort=6789/ControlPort=${port}/g" -e "s/SecurePort=6791/SecurePort=${secureport}/g" /home/$u/nzbget/nzbget.conf)
         fi
         # every user gets its certificate, not only the last one of the list
         if [[ ! -d /home/$u/.ssl/ ]]; then
@@ -34,9 +34,7 @@ function _install() {
         fi
         . /etc/swizzin/sources/functions/ssl
         create_self_ssl $u
-        sed -i "s/SecureControl=no/SecureControl=yes/g" /home/$u/nzbget/nzbget.conf
-        sed -i "s/SecureCert=/SecureCert=\/home\/$u\/.ssl\/$u-self-signed.crt/g" /home/$u/nzbget/nzbget.conf
-        sed -i "s/SecureKey=/SecureKey=\/home\/$u\/.ssl\/$u-self-signed.key/g" /home/$u/nzbget/nzbget.conf
+        (cd / && runuser -u "$u" -- sed -i -e "s/SecureControl=no/SecureControl=yes/g" -e "s/SecureCert=/SecureCert=\/home\/$u\/.ssl\/$u-self-signed.crt/g" -e "s/SecureKey=/SecureKey=\/home\/$u\/.ssl\/$u-self-signed.key/g" /home/$u/nzbget/nzbget.conf)
         echo_progress_done "Nzbget installed for $u"
     done
 

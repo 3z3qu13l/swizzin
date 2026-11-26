@@ -99,15 +99,20 @@ nice = -n10
 pause_on_post_processing = 1
 enable_all_par = 1
 direct_unpack_threads = 1
-password = "${password}"
 username = "${user}"
 url_base = "sabnzbd"
 SAB_INI
 chown -R ${user}: /opt/sabnzbd
-chown ${user}: /home/${user}/.config
+chown -h ${user}: /home/${user}/.config
 chown -R ${user}: /home/${user}/.config/sabnzbd
 chown ${user}: /home/${user}/Downloads
 chown ${user}: /home/${user}/Downloads/{complete,incomplete}
+# configobj picks the quoting that keeps any password intact; written as the user, whose file it is.
+# Without it SABnzbd would run with no password, so the install stops
+(cd / && runuser -u "${user}" -- env SAB_PASS="${password}" /opt/.venv/sabnzbd/bin/python -c 'import os, sys; from configobj import ConfigObj; c = ConfigObj(sys.argv[1], encoding="utf-8"); c["misc"]["password"] = os.environ["SAB_PASS"]; c.write()' /home/${user}/.config/sabnzbd/sabnzbd.ini) || {
+    echo_error "Could not set the SABnzbd password"
+    exit 1
+}
 echo_progress_done
 
 echo_progress_start "Starting SABnzbd"

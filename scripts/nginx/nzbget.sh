@@ -22,13 +22,11 @@ fi
 
 for u in "${users[@]}"; do
     isactive=$(systemctl is-active nzbget@$u)
-    sed -i "s/SecureControl=yes/SecureControl=no/g" /home/$u/nzbget/nzbget.conf
-    sed -i "s/ControlIP=0.0.0.0/ControlIP=127.0.0.1/g" /home/$u/nzbget/nzbget.conf
-    sed -i "s/ControlUsername=nzbget/ControlUsername=/g" /home/$u/nzbget/nzbget.conf
-    sed -i "s/ControlPassword=tegbzn6789/ControlPassword=/g" /home/$u/nzbget/nzbget.conf
+    # as the user: the config is in their home, a root sed or grep would follow a link they put there
+    (cd / && runuser -u "$u" -- sed -i -e "s/SecureControl=yes/SecureControl=no/g" -e "s/ControlIP=0.0.0.0/ControlIP=127.0.0.1/g" -e "s/ControlUsername=nzbget/ControlUsername=/g" -e "s/ControlPassword=tegbzn6789/ControlPassword=/g" /home/$u/nzbget/nzbget.conf)
 
     if [[ ! -f /etc/nginx/conf.d/${u}.nzbget.conf ]]; then
-        NZBPORT=$(grep ControlPort /home/$u/nzbget/nzbget.conf | cut -d= -f2)
+        NZBPORT=$(cd / && runuser -u "$u" -- grep ControlPort /home/$u/nzbget/nzbget.conf | cut -d= -f2)
         # the user can edit their config: only a port number goes into nginx
         if [[ ! $NZBPORT =~ ^[0-9]{1,5}$ ]]; then
             echo_warn "NZBGet of ${u} has no valid ControlPort, it is not added to nginx"
