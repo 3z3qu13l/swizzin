@@ -21,7 +21,10 @@ function install_rar() {
         if [ -n "$srcurl" ]; then
             echo_progress_start "Compiling unrar from source"
             # Private temp dir: fixed /tmp paths let a local user pre-plant symlinks
-            srcdir=$(mktemp -d)
+            srcdir=$(mktemp -d) || {
+                echo_warn "Could not create a temporary folder for unrar\nInstallation will continue"
+                return 0
+            }
             if ! wget -q "$srcurl" -O "$srcdir/unrarsrc.tar.gz" >> "$log" 2>&1 ||
                 ! echo "$srcsha256  $srcdir/unrarsrc.tar.gz" | sha256sum -c >> "$log" 2>&1; then
                 # unrar is optional, like a failed compile below the install goes on without it

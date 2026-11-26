@@ -105,9 +105,9 @@ function password_check() {
     fi
     # If password was empty then it needs to be generated
     if [[ -z "${pass}" ]]; then
-        # a generated password is only shown on screen: without a terminal nobody would ever see it
+        # generating one needs a terminal to show it and confirm it was noted
         if _no_terminal; then
-            echo_error "No password given and no terminal to show a generated one."
+            echo_error "No password given: pass it as an argument, box adduser|chpasswd <user> <password>"
             exit 1
         fi
         echo_progress_start "Generating password"
