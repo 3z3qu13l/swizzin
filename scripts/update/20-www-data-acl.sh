@@ -57,7 +57,8 @@ for f in rindex dindex qbtindex tmsindex; do
     root=$(_served_root "$conf") || continue
     [[ -n $root ]] || continue
     grep -qF "$line" "$conf" && continue
-    if grep -qE '^\s*disable_symlinks' "$conf" && ! grep -qE '^\s*disable_symlinks\s+if_not_owner' "$conf"; then continue; fi
+    # a stricter setting an admin chose (on) is kept; off and the older if_not_owner lines are replaced
+    if grep -qE '^\s*disable_symlinks' "$conf" && ! grep -qE '^\s*disable_symlinks\s+(if_not_owner|off)' "$conf"; then continue; fi
     cp -p "$conf" /root/"${f}".conf.bak
     sed -i -E -e '/^\s*disable_symlinks /d' -e "s|^(\s*)alias ${root//\$/\\\$}/?;\s*$|&\n\1${line}|" "$conf"
     if grep -qF "$line" "$conf"; then
@@ -176,7 +177,7 @@ for st in /proc/[0-9]*/status; do
     awk '/^Groups:/ {for (i = 2; i <= NF; i++) if ($i == 33) f = 1} END {exit !f}' "$st" 2> /dev/null || continue
     name=$(id -nu "$uid" 2> /dev/null) || name=$uid
     _in_group "$name" www-data && continue
-    cg=$(awk -F: 'NR == 1 {print $3}' "${st%/status}"/cgroup 2> /dev/null)
+    cg=$(awk -F: '$1 == 0 || $2 == "name=systemd" {print $3; exit}' "${st%/status}"/cgroup 2> /dev/null)
     if [[ $cg == /system.slice/*.service ]]; then
         units+=("${cg##*/}")
     else
