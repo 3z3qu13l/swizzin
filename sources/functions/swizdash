@@ -1,0 +1,171 @@
+#!/bin/bash
+# swizdash dashboard helpers
+# https://github.com/3z3qu13l/swizzin-dashboard
+
+swizdash_dir="/opt/swizdash"
+swizdash_release="https://github.com/3z3qu13l/swizzin-dashboard/releases/latest/download/swizdash.tar.gz"
+
+#shellcheck source=sources/functions/npm
+. /etc/swizzin/sources/functions/npm
+
+# Node strips the TypeScript types of the server itself since version 23.6
+function _swizdash_node_ok() {
+    local major
+    major=$(node -p 'process.versions.node.split(".")[0]' 2> /dev/null)
+    [[ -n $major && $major -ge 24 ]]
+}
+
+# Installs the latest release in $swizdash_dir. SWIZDASH_ARCHIVE installs a local archive instead.
+function swizdash_download() {
+    local tmp new="${swizdash_dir}.new" active
+    if ! _swizdash_node_ok; then
+        npm_install
+    fi
+    if ! _swizdash_node_ok; then
+        echo_error "swizdash needs Node.js 24 or newer"
+        exit 1
+    fi
+    tmp=$(mktemp -d)
+    if [[ -n $SWIZDASH_ARCHIVE ]]; then
+        cp "$SWIZDASH_ARCHIVE" "${tmp}/swizdash.tar.gz" || {
+            echo_error "Could not read ${SWIZDASH_ARCHIVE}"
+            rm -rf "$tmp"
+            exit 1
+        }
+    else
+        echo_progress_start "Downloading swizdash"
+        curl -fsSL --retry 2 -o "${tmp}/swizdash.tar.gz" "$swizdash_release" >> "$log" 2>&1 &&
+            curl -fsSL --retry 2 -o "${tmp}/swizdash.tar.gz.sha256" "${swizdash_release}.sha256" >> "$log" 2>&1 || {
+            echo_error "Failed to download swizdash"
+            rm -rf "$tmp"
+            exit 1
+        }
+        # a truncated or altered download must never reach root
+        (cd "$tmp" && sha256sum --quiet -c swizdash.tar.gz.sha256) >> "$log" 2>&1 || {
+            echo_error "The swizdash download does not match its checksum"
+            rm -rf "$tmp"
+            exit 1
+        }
+        echo_progress_done
+    fi
+    rm -rf "$new"
+    mkdir -p "$new"
+    tar -xzf "${tmp}/swizdash.tar.gz" -C "$new" --strip-components=1 --no-same-owner >> "$log" 2>&1 || {
+        echo_error "The swizdash archive is damaged"
+        rm -rf "$tmp" "$new"
+        exit 1
+    }
+    rm -rf "$tmp"
+    # root owns the code: the dashboard user must not be able to change what root runs
+    chown -R root:root "$new"
+    chmod -R u=rwX,go=rX "$new"
+
+    active=$(systemctl is-active swizdash 2> /dev/null)
+    systemctl stop swizdash > /dev/null 2>&1
+    rm -rf "${swizdash_dir}.old"
+    [[ -d $swizdash_dir ]] && mv "$swizdash_dir" "${swizdash_dir}.old"
+    if ! mv "$new" "$swizdash_dir"; then
+        # puts the running version back
+        [[ -d ${swizdash_dir}.old ]] && mv "${swizdash_dir}.old" "$swizdash_dir"
+        [[ $active == active ]] && systemctl start swizdash
+        echo_error "Could not install swizdash in ${swizdash_dir}"
+        exit 1
+    fi
+    rm -rf "${swizdash_dir}.old"
+    swizdash_helper
+    [[ $active == active ]] && systemctl start swizdash
+    return 0
+}
+
+# The root helper and the only sudo rule of the dashboard user
+function swizdash_helper() {
+    install -o root -g root -m 0755 "${swizdash_dir}/helper/swizdash-helper" /usr/local/sbin/swizdash-helper
+    local rule="swizdash ALL=(root) NOPASSWD: /usr/local/sbin/swizdash-helper"
+    # the dashboard polls the helper: keep it out of the auth log where sudo allows it
+    # (sudo-rs, on Ubuntu 26.04, does not know these settings)
+    printf '%s\n' "# swizdash runs unprivileged, only this helper runs as root and it checks every argument" \
+        "Defaults:swizdash !syslog, !logfile, !pam_session" "$rule" > /etc/sudoers.d/swizdash.tmp
+    chmod 0440 /etc/sudoers.d/swizdash.tmp
+    if ! visudo -cqf /etc/sudoers.d/swizdash.tmp > /dev/null 2>&1; then
+        printf '%s\n' "# swizdash runs unprivileged, only this helper runs as root and it checks every argument" "$rule" > /etc/sudoers.d/swizdash.tmp
+    fi
+    # a broken sudoers file would lock sudo for everyone
+    if visudo -cqf /etc/sudoers.d/swizdash.tmp > /dev/null 2>&1; then
+        mv -f /etc/sudoers.d/swizdash.tmp /etc/sudoers.d/swizdash
+    else
+        rm -f /etc/sudoers.d/swizdash.tmp
+        echo_error "Could not write the swizdash sudo rule"
+        exit 1
+    fi
+}
+
+# Shared secret nginx adds to each request: other local processes cannot reach the socket without it
+function swizdash_token() {
+    mkdir -p /etc/swizdash
+    if [[ ! -s /etc/swizdash/token ]]; then
+        (
+            umask 077
+            head -c 32 /dev/urandom | base64 | tr -d '/+=\n' > /etc/swizdash/token
+        )
+    fi
+    chown root:swizdash /etc/swizdash /etc/swizdash/token
+    chmod 0750 /etc/swizdash
+    chmod 0640 /etc/swizdash/token
+    # read by the nginx master process as root, workers and local users cannot read it
+    (
+        umask 077
+        echo "proxy_set_header X-Swizdash-Token \"$(cat /etc/swizdash/token)\";" > /etc/nginx/swizdash-token.conf
+    )
+}
+
+function swizdash_systemd() {
+    local master
+    master=$(_get_master_username)
+    # systemd opens the socket for nginx (www-data), the dashboard never joins that group
+    cat > /etc/systemd/system/swizdash.socket << 'SOCKET'
+[Unit]
+Description=swizdash dashboard socket
+
+[Socket]
+ListenStream=/run/swizdash/http.sock
+SocketUser=swizdash
+SocketGroup=www-data
+SocketMode=0660
+DirectoryMode=0755
+
+[Install]
+WantedBy=sockets.target
+SOCKET
+    cat > /etc/systemd/system/swizdash.service << SERVICE
+[Unit]
+Description=swizdash dashboard
+Requires=swizdash.socket
+After=swizdash.socket network.target
+
+[Service]
+User=swizdash
+Group=swizdash
+WorkingDirectory=${swizdash_dir}
+Environment=NODE_ENV=production
+Environment=SWIZDASH_MASTER=${master}
+ExecStart=$(command -v node) --disable-warning=ExperimentalWarning ${swizdash_dir}/server/main.ts
+StateDirectory=swizdash
+StateDirectoryMode=0750
+Restart=on-failure
+RestartSec=5
+# The root helper runs inside this sandbox too: it can read the homes but not write
+# to them or to /etc. Installs and removals run in their own unit (systemd-run).
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+    # an older swizdash.service owned /run/swizdash: stop it before the socket takes the folder
+    systemctl stop swizdash > /dev/null 2>&1
+    systemctl daemon-reload
+    systemctl enable -q swizdash.socket swizdash 2>&1 | tee -a "$log"
+    systemctl restart swizdash.socket
+    systemctl start swizdash
+}
