@@ -35,6 +35,7 @@ function _install() {
         . /etc/swizzin/sources/functions/ssl
         create_self_ssl $u
         (cd / && runuser -u "$u" -- sed -i -e "s/SecureControl=no/SecureControl=yes/g" -e "s/SecureCert=/SecureCert=\/home\/$u\/.ssl\/$u-self-signed.crt/g" -e "s/SecureKey=/SecureKey=\/home\/$u\/.ssl\/$u-self-signed.key/g" /home/$u/nzbget/nzbget.conf)
+        _home_private "$u" >> "$log" 2>&1
         echo_progress_done "Nzbget installed for $u"
     done
 

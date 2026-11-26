@@ -275,6 +275,25 @@ function _home_acl() {
 }
 export -f _home_acl
 
+# The clients keep WebUI password hashes, API keys and secrets there, often world-readable: www-data
+# lists the home (ruTorrent's folder picker) and the media servers are in the master's group for the
+# libraries, neither needs them. Only these entries, never recursively, never the downloads. ~/.sessions
+# stays open: ruTorrent reads rtorrent.lock there. As the user, so a link they placed only reaches their
+# own files. Prints what it closed, and on stderr what it could not close
+function _home_private() {
+    # shellcheck disable=SC2016 # expanded by the user's sh
+    (cd / && runuser -u "$1" -- sh -c '
+        cd "/home/$1" || exit 1
+        mkdir -p -m 700 .config .local .cache
+        for f in .config .local .cache .irssi .autodl .flood .xmrig .rtorrent.rc nzbget/nzbget.conf; do
+            if [ -e "$f" ]; then
+                find -H "$f" -maxdepth 0 -perm /077 -user "$(id -u)" -exec chmod go-rwx {} \; -print
+                find -H "$f" -maxdepth 0 -perm /077 ! -user "$(id -u)" -printf "%p belongs to %u, it stays readable\n" >&2
+            fi
+        done' sh "$1")
+}
+export -f _home_private
+
 # Runs a command as nginx and PHP do once they are in no user's group
 function _as_www_data() {
     setpriv --reuid=www-data --regid=www-data --clear-groups -- "$@"

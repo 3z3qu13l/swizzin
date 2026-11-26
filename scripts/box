@@ -372,6 +372,7 @@ function _adduser() {
     chmod 750 /home/"${user}"
 
     _home_acl "$user" >> $log 2>&1 || echo_warn "Could not set an ACL on /home/${user}, its web download listings will be refused"
+    _home_private "$user" >> "$log" 2>&1
     echo "D /var/run/${user} 0750 ${user} ${user} -" >> /etc/tmpfiles.d/"${user}".conf
     systemd-tmpfiles /etc/tmpfiles.d/"${user}".conf --create >> $log 2>&1
 
