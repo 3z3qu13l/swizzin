@@ -84,6 +84,7 @@ function update_nginx() {
             cat > /etc/nginx/apps/rindex.conf << EOR
 location /rtorrent.downloads {
   alias /home/\$remote_user/torrents/rtorrent;
+  disable_symlinks if_not_owner from=/home/\$remote_user/torrents/rtorrent;
   include /etc/nginx/snippets/fancyindex.conf;
   auth_basic "What's the password?";
   auth_basic_user_file /etc/htpasswd;
@@ -113,6 +114,7 @@ EOR
             cat > /etc/nginx/apps/dindex.conf << DIN
 location /deluge.downloads {
   alias /home/\$remote_user/torrents/deluge;
+  disable_symlinks if_not_owner from=/home/\$remote_user/torrents/deluge;
   include /etc/nginx/snippets/fancyindex.conf;
   auth_basic "What's the password?";
   auth_basic_user_file /etc/htpasswd;
@@ -141,7 +143,8 @@ DIN
             echo_progress_start "Updating transmission nginx config"
             cat > /etc/nginx/apps/tmsindex.conf << DIN
 location /transmission.downloads {
-  alias /home/\$remote_user/torrents/transmission;
+  alias /home/\$remote_user/transmission/downloads;
+  disable_symlinks if_not_owner from=/home/\$remote_user/transmission/downloads;
   include /etc/nginx/snippets/fancyindex.conf;
   auth_basic "What's the password?";
   auth_basic_user_file /etc/htpasswd;
@@ -171,6 +174,7 @@ DIN
             cat > /etc/nginx/apps/qbtindex.conf << DIN
 location /qbittorrent.downloads {
   alias /home/\$remote_user/torrents/qbittorrent;
+  disable_symlinks if_not_owner from=/home/\$remote_user/torrents/qbittorrent;
   include /etc/nginx/snippets/fancyindex.conf;
   auth_basic "What's the password?";
   auth_basic_user_file /etc/htpasswd;
