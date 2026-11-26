@@ -48,4 +48,18 @@ if [ -f /install/.transmission.lock ]; then
         fi
         echo_progress_done
     done
+
+    # Ubuntu 26.04+: the AppArmor profile blocks every user's folders
+    if [[ -f /etc/apparmor.d/transmission ]]; then
+        . /etc/swizzin/sources/functions/transmission
+        readarray -t users < <(_get_user_list)
+        dirs=()
+        for u in "${users[@]}"; do
+            conf="/home/${u}/.config/transmission-daemon/settings.json"
+            [[ -f $conf ]] || continue
+            readarray -t user_dirs < <(jq -r '(.["download-dir"] // .download_dir), (.["incomplete-dir"] // .incomplete_dir), (.["watch-dir"] // .watch_dir) | values' "$conf" 2> /dev/null)
+            dirs+=("${user_dirs[@]}")
+        done
+        _apparmor_transmission "${dirs[@]}"
+    fi
 fi

@@ -14,6 +14,12 @@ echo_log_only "Removing service file and nginx configs"
 rm /etc/systemd/system/transmission@.service
 rm /etc/nginx/apps/transmission.conf >> "$log" 2>&1
 rm /etc/nginx/conf.d/*.transmission.conf >> "$log" 2>&1
+if [[ -f /etc/apparmor.d/local/transmission-daemon ]]; then
+    rm -f /etc/apparmor.d/local/transmission-daemon
+    if grep -q '^transmission-daemon ' /sys/kernel/security/apparmor/profiles 2> /dev/null; then
+        apparmor_parser -r /etc/apparmor.d/transmission >> "$log" 2>&1
+    fi
+fi
 systemctl reload nginx >> "$log" 2>&1
 systemctl daemon-reload
 

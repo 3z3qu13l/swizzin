@@ -214,6 +214,7 @@ if [[ -n $1 ]]; then
     _setenv_transmission
     _mkdir_transmission
     _mkconf_transmission
+    _apparmor_transmission "/home/${user}/${download_dir}" "/home/${user}/${incomplete_dir}" "/home/${user}/${watch_dir}"
     # an existing upstream is kept as is, the nginx script would restart every user's Transmission
     if [[ ! -f /etc/nginx/conf.d/${user}.transmission.conf ]]; then
         _nginx_transmission
@@ -241,6 +242,7 @@ for user in ${users[@]}; do
     _setenv_transmission
     _mkdir_transmission
     _mkconf_transmission
+    _apparmor_transmission "/home/${user}/${download_dir}" "/home/${user}/${incomplete_dir}" "/home/${user}/${watch_dir}"
     # _start_transmission
     _unsetenv_transmission
     echo_progress_done "Transmission set up for $user"
