@@ -34,7 +34,7 @@ function _installBTSync3() {
     apt_install resilio-sync
 }
 function _installBTSync4() {
-    cd && mkdir /home/"${MASTER}"/sync_folder
+    cd && mkdir -p /home/"${MASTER}"/sync_folder
     chown ${MASTER}: /home/${MASTER}/sync_folder
     chmod 2775 /home/${MASTER}/sync_folder
     chown ${MASTER}: -R /home/${MASTER}/.config/

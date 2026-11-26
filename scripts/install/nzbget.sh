@@ -53,7 +53,7 @@ function _install() {
     fi
 
     echo_progress_start "Enabling nzbget for all users"
-    for u in ${users}; do
+    for u in "${users[@]}"; do
         systemctl enable -q nzbget@$u 2>&1 | tee -a $log
         systemctl start nzbget@$u
     done
@@ -65,7 +65,7 @@ function _cleanup() {
     rm -rf nzbget-latest-bin-linux.run
 }
 
-users=$(_get_user_list)
+mapfile -t users < <(_get_user_list)
 master=$(_get_master_username)
 noexec=$(grep "/tmp" /etc/fstab | grep noexec)
 
