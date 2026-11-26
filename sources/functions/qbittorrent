@@ -765,6 +765,8 @@ WebUI\SessionTimeout=3600
 WebUI\UseUPnP=true
 WebUI\Username=${user}
 QBTCONF
+    # written by root: under a restrictive umask qBittorrent could not read it and would save its defaults over it
+    chown ${user}: /home/${user}/.config/qBittorrent/qBittorrent.conf
 }
 
 # Prints a WebUI setting of a user: qBittorrent 5.3 moves WebUI\Key in [Preferences] to Key in [WebUI]

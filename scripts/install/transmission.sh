@@ -181,6 +181,8 @@ _mkconf_transmission() {
     "watch-dir-enabled": ${watch_dir_enabled}
 }
 EOF
+    # written by root: under a restrictive umask Transmission could not read it and would save its defaults over it
+    chown ${user}: /home/${user}/.config/transmission-daemon/settings.json
     echo_progress_done "Config created"
     if [[ ! -f /install/.nginx.lock ]]; then
         echo_info "Transmission RPC port for ${bold}${user} = ${rpc_port}"
@@ -212,7 +214,10 @@ if [[ -n $1 ]]; then
     _setenv_transmission
     _mkdir_transmission
     _mkconf_transmission
-    _nginx_transmission
+    # an existing upstream is kept as is, the nginx script would restart every user's Transmission
+    if [[ ! -f /etc/nginx/conf.d/${user}.transmission.conf ]]; then
+        _nginx_transmission
+    fi
     _unsetenv_transmission
     _start_transmission
     exit 0
