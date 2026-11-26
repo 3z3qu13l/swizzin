@@ -19,7 +19,18 @@
 
 # Install fuse
 apt_install fuse
-sed -i -e 's/#user_allow_other/user_allow_other/' /etc/fuse.conf
+
+# user_allow_other is system wide: any user could then mount a FUSE filesystem readable by nginx (www-data)
+# and use its fake links to get files www-data can read served to them.
+case $RCLONE_ALLOW_OTHER in
+    yes | no) ;;
+    "")
+        if whiptail --title "rclone: let other services read the mount" --defaultno --yesno "Do you want services such as Plex, Emby or Jellyfin to read the rclone mount (~/cloud)?\n\nWARNING: this sets user_allow_other in /etc/fuse.conf, which lets ANY user on this server mount a FUSE filesystem that other accounts can read. A user can use it to make the web server hand them files they should not see (other users' served folders, /etc/htpasswd).\n\nAnswer Yes only if every user of this server is trusted." 17 78; then
+            RCLONE_ALLOW_OTHER=yes
+        fi
+        ;;
+    *) echo_warn "RCLONE_ALLOW_OTHER must be yes or no; \"$RCLONE_ALLOW_OTHER\" is read as no" ;;
+esac
 
 echo_progress_start "Downloading and installing rclone"
 # One-liner to check arch/os type, as well as download latest rclone for relevant system.
@@ -29,6 +40,24 @@ wget -q https://rclone.org/install.sh -O /tmp/rcloneinstall.sh >> $log 2>&1
 if ! bash /tmp/rcloneinstall.sh; then
     echo_error "Rclone installer failed"
     exit 1
+fi
+echo_progress_done
+
+allow_other=""
+if [[ $RCLONE_ALLOW_OTHER == yes ]]; then
+    allow_other=" --allow-other"
+    if ! grep -qx 'user_allow_other' /etc/fuse.conf 2> /dev/null; then
+        if grep -qx '#user_allow_other' /etc/fuse.conf 2> /dev/null; then
+            sed -i 's/^#user_allow_other$/user_allow_other/' /etc/fuse.conf
+        else
+            [[ -s /etc/fuse.conf && -n $(tail -c1 /etc/fuse.conf) ]] && echo >> /etc/fuse.conf
+            echo user_allow_other >> /etc/fuse.conf
+        fi
+        # remove only reverts the setting when swizzin turned it on, an admin's own (mergerfs...) is kept
+        touch /install/.rclone-allow-other
+    fi
+    touch /install/.rclone-allow-other.warned
+    echo_warn "user_allow_other is set in /etc/fuse.conf: every user can now mount FUSE filesystems other accounts read"
 fi
 
 echo_progress_start "Adding rclone multi-user mount service"
@@ -48,8 +77,7 @@ ExecStart=/usr/bin/rclone mount gdrive: /home/%i/cloud/ \
   --use-mmap \
   --dir-cache-time 1h \
   --timeout 30s \
-  --umask 002 \
-  --allow-other \
+  --umask 002${allow_other} \
   --poll-interval=1h \
   --vfs-cache-mode writes \
   --vfs-read-chunk-size 1M \
@@ -70,3 +98,9 @@ echo_progress_done
 touch /install/.rclone.lock
 echo_success "Rclone installed"
 echo_info "Setup Rclone remote named \"gdrive\" And run sudo systemctl start rclone@username.service"
+if [[ -z $allow_other ]]; then
+    echo_info "Only its own user can read the mount. To let Plex, Emby or Jellyfin read it (this stops the running mounts): box remove rclone && RCLONE_ALLOW_OTHER=yes box install rclone"
+    if grep -qx 'user_allow_other' /etc/fuse.conf 2> /dev/null; then
+        echo_warn "user_allow_other was already set in /etc/fuse.conf and is left as it is: every user can still mount FUSE filesystems other accounts read"
+    fi
+fi
