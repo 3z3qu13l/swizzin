@@ -19,13 +19,13 @@ function _rtx_restore() {
     local name=${1##*/}
     # an empty name would restore the whole plugins folder
     [[ $name =~ ^[A-Za-z0-9_.-]+$ && $name != . && $name != .. ]] || return 1
-    git -C /srv/rutorrent cat-file -e "HEAD:$1" 2> /dev/null || return 1
+    rutorrent_git cat-file -e "HEAD:$1" 2> /dev/null || return 1
     # never reset the settings of an installed one
     if [[ -e /srv/rutorrent/$1 ]]; then
         echo_warn "${name} is already installed"
         return 0
     fi
-    git -C /srv/rutorrent checkout HEAD -- "$1" >> "$log" 2>&1
+    rutorrent_git checkout HEAD -- "$1" >> "$log" 2>&1
 }
 
 # Copies one folder of a GitHub repository, what svn did until GitHub dropped it in 2024
@@ -45,7 +45,7 @@ function _rtx_fetch_dir() {
 
 # Plugins and themes are listed and restored from the ruTorrent git clone
 function _rtx_check_git() {
-    git -C /srv/rutorrent rev-parse -q --verify HEAD > /dev/null || {
+    rutorrent_git rev-parse -q --verify HEAD > /dev/null || {
         echo_error "/srv/rutorrent is not a git clone of ruTorrent, reinstall ruTorrent to use rtx"
         exit 1
     }
@@ -127,11 +127,11 @@ function _itplugs() {
     arg=("$@")
     result=("${arg[@]:1}")
     _rtx_check_git
-    tag=$(git -C /srv/rutorrent describe --tags --abbrev=0)
+    tag=$(rutorrent_git describe --tags --abbrev=0)
     installa=()
     # the plugins shipped with the installed ruTorrent but the ones its install drops on purpose,
     # then the third party ones it does not ship (ruTorrent 5 has its own mobile)
-    readarray -t plugs < <(git -C /srv/rutorrent ls-tree --name-only HEAD plugins/ | sed 's|^plugins/||' | grep -vx -e _cloudflare -e dump)
+    readarray -t plugs < <(rutorrent_git ls-tree --name-only HEAD plugins/ | sed 's|^plugins/||' | grep -vx -e _cloudflare -e dump)
     for i in filemanager filemanager-media filemanager-share mobile pausewebui ratiocolor; do
         [[ " ${plugs[*]} " == *" $i "* ]] || plugs+=("$i")
     done

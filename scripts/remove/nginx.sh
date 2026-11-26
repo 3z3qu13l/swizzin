@@ -14,7 +14,12 @@ rm -rf /etc/php
 
 #shellcheck source=sources/functions/utils
 . /etc/swizzin/sources/functions/utils
-rm_if_exists "/srv/rutorrent"
+#shellcheck source=sources/functions/rutorrent
+. /etc/swizzin/sources/functions/rutorrent
+rm_if_exists "/install/.rutorrent.nosymfollow.failed"
+rm_if_exists "/install/.rutorrent.nginx-deny.failed"
+# rm would empty the profiles through the mount
+if rutorrent_profiles_unmount; then rm_if_exists "/srv/rutorrent"; else echo_warn "/srv/rutorrent/share/users is still mounted, /srv/rutorrent was kept"; fi
 rm_if_exists "/install/.rutorrent.lock"
 
 rm_if_exists "/srv/panel"

@@ -78,7 +78,7 @@ if rtorrent_installed_atleast 0.16; then
     #shellcheck source=sources/functions/rutorrent
     . /etc/swizzin/sources/functions/rutorrent
     if rutorrent_perms_needed; then rutorrent_perms; fi
-    rutorrent_tag=$(git -C /srv/rutorrent describe --tags 2> /dev/null)
+    rutorrent_tag=$(rutorrent_git describe --tags 2> /dev/null)
     if [[ -n $rutorrent_tag ]] && dpkg --compare-versions "${rutorrent_tag#v}" lt 5.3.9; then
         echo_warn "ruTorrent ${rutorrent_tag} does not support rTorrent 0.16 (settings and some plugins will fail). Reinstall ruTorrent to get the latest version."
     fi
