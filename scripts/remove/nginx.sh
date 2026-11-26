@@ -38,4 +38,18 @@ if [[ -f /install/.transmission.lock ]]; then
     done
 fi
 
+# Same for Deluge's web interface, back to its install defaults without nginx
+if [[ -f /install/.deluge.lock ]]; then
+    #shellcheck source=sources/functions/deluge
+    . /etc/swizzin/sources/functions/deluge
+    for u in $(_get_user_list); do
+        [[ -f /home/${u}/.config/deluge/web.conf ]] || continue
+        [[ $(deluge_web_interface "$u") == 127.0.0.1 ]] || continue
+        active=$(systemctl is-active deluge-web@"$u")
+        systemctl stop deluge-web@"$u"
+        deluge_web_listen "$u" 0.0.0.0 true || echo_warn "Deluge web interface of $u still only listens on 127.0.0.1"
+        if [[ $active == "active" ]]; then systemctl start deluge-web@"$u"; fi
+    done
+fi
+
 rm /install/.nginx.lock
