@@ -661,7 +661,10 @@ function _media_access() {
     local a=$2 dir=$3 perm=rX uid uid_min out
     uid=$(id -u -- "$a" 2> /dev/null)
     uid_min=$(awk '$1 == "UID_MIN" {print $2}' /etc/login.defs)
-    if [[ -z $uid ]] || ((uid == 0 || uid >= ${uid_min:-1000})); then
+    if [[ -z $uid ]]; then
+        echo_error "There is no account named $a: is the app installed?"
+        exit 1
+    elif ((uid == 0 || uid >= ${uid_min:-1000})); then
         echo_error "$a is not a system account, such as a media server's (plex, emby, jellyfin, airsonic, calibreweb)"
         exit 1
     fi
