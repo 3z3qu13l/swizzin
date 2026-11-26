@@ -363,6 +363,7 @@ function _post() {
     if [[ $distribution = "Ubuntu" ]]; then
         echo 'Defaults  env_keep -="HOME"' > /etc/sudoers.d/env_keep
     fi
+    chmod 440 /etc/sudoers.d/secure_path /etc/sudoers.d/env_keep 2> /dev/null
 
     ring_the_bell
     echo_success "Swizzin installation complete!"

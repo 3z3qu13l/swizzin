@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2154 # log is exported by globals.sh
 users=($(cut -d: -f1 < /etc/htpasswd))
 
 for u in "${users[@]}"; do
@@ -16,6 +17,12 @@ for u in "${users[@]}"; do
         else
             sed -i 's/network.scgi.open_port.*/network.scgi.open_local = \/var\/run\/'${u}'\/.rtorrent.sock\nschedule = chmod_scgi_socket, 0, 0, "execute=chmod,\\"g+w,o=\\",\/var\/run\/'${u}'\/.rtorrent.sock"/' /home/${u}/.rtorrent.rc
             restart=1
+        fi
+        # rTorrent opened its session folder to everyone at each start, and chmodded an rpc.socket nothing uses.
+        # Run as the user: a link they put there is never followed as root
+        if runuser -u "${u}" -- grep -qE "^execute.nothrow = chmod,777,/home/${u}/(\.config/rpc\.socket|\.sessions)$" /home/${u}/.rtorrent.rc; then
+            runuser -u "${u}" -- sed -i -E "/^execute.nothrow = chmod,777,\/home\/${u}\/(\.config\/rpc\.socket|\.sessions)$/d" /home/${u}/.rtorrent.rc 2>> "$log"
+            runuser -u "${u}" -- chmod 755 /home/${u}/.sessions 2>> "$log"
         fi
         if ! grep -q /srv/rutorrent/php/initplugins.php /home/${u}/.rtorrent.rc; then
             sed -i 's:/var/www/rutorrent/php/initplugins.php:/srv/rutorrent/php/initplugins.php:g' /home/${u}/.rtorrent.rc
