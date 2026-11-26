@@ -30,6 +30,21 @@ if [[ $distribution == Ubuntu ]]; then
     echo_progress_done "Repos installed via PPA"
     apt_update
 else
+    x2go_key=$(mktemp)
+    apt_key_install "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x972FD88FA0BAFB578D0476DFE1F958385BFE2B6E" "$x2go_key" || {
+        rm -f "$x2go_key"
+        echo_error "The x2go signing key could not be downloaded"
+        exit 1
+    }
+    # anyone can upload keys to a keyserver: only the x2go key, and no other, may sign this repository
+    x2go_keys=$(gpg --show-keys --with-colons "$x2go_key" 2>> "$log")
+    if [[ $(grep -c '^pub:' <<< "$x2go_keys") != 1 ]] || ! grep -q '^fpr:::::::::972FD88FA0BAFB578D0476DFE1F958385BFE2B6E:' <<< "$x2go_keys"; then
+        rm -f "$x2go_key"
+        echo_error "The x2go signing key does not match its fingerprint"
+        exit 1
+    fi
+    install -D -m 644 "$x2go_key" /usr/share/keyrings/x2go-archive-keyring.gpg
+    rm -f "$x2go_key"
     cat > /etc/apt/sources.list.d/x2go.list << EOF
 # X2Go Repository (release builds)
 deb [signed-by=/usr/share/keyrings/x2go-archive-keyring.gpg] http://packages.x2go.org/debian ${release} main
@@ -42,16 +57,6 @@ deb-src [signed-by=/usr/share/keyrings/x2go-archive-keyring.gpg] http://packages
 #deb-src [signed-by=/usr/share/keyrings/x2go-archive-keyring.gpg] http://packages.x2go.org/debian ${release} heuler
 EOF
     echo_progress_done "Repo added"
-    mkdir -p /usr/share/keyrings
-    x2go_key=$(mktemp)
-    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xE1F958385BFE2B6E" -o "$x2go_key" >> ${log} 2>&1
-    if ! gpg --show-keys --with-colons "$x2go_key" 2>> ${log} | grep -q '^fpr:::::::::972FD88FA0BAFB578D0476DFE1F958385BFE2B6E:'; then
-        rm -f "$x2go_key"
-        echo_error "The x2go signing key could not be downloaded or does not match its fingerprint"
-        exit 1
-    fi
-    gpg --dearmor --yes -o /usr/share/keyrings/x2go-archive-keyring.gpg "$x2go_key" >> ${log} 2>&1
-    rm -f "$x2go_key"
     apt_update
     apt_install x2go-keyring
 fi
