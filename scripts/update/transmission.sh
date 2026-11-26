@@ -21,13 +21,17 @@ if [ -f /install/.transmission.lock ]; then
         [[ -f $conf ]] || continue
         active=$(systemctl is-active transmission@"$u")
         enabled=$(systemctl is-enabled transmission@"$u")
+        # root would read or write wherever a symlink placed by the user points: dropped, the config is written again below
+        if [[ -L $conf ]]; then
+            rm -f "$conf"
         # Still unreadable and not yet overwritten: Transmission runs on its defaults and would save them when stopped
-        if ! runuser -u "$u" -- test -r "$conf"; then
+        elif ! runuser -u "$u" -- test -r "$conf"; then
             echo_progress_start "Giving $u its Transmission config"
-            cp -p "$conf" "${conf}.swizzin"
+            # renamed, never copied: rename replaces a symlink instead of following it
+            mv -fT "$conf" "${conf}.swizzin"
             systemctl stop transmission@"$u"
-            mv -f "${conf}.swizzin" "$conf"
-            chown "$u": "$conf"
+            mv -fT "${conf}.swizzin" "$conf"
+            chown -h "$u": "$conf"
             if [[ $active == "active" ]]; then
                 systemctl start transmission@"$u"
             fi
