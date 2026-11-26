@@ -186,3 +186,46 @@ function username_check() {
     fi
     echo_log_only "Username_check returned"
 }
+
+# Writes the sudo rule that lets a user run their own services. sudo only takes A-Z, 0-9 and _ in an alias name
+# and stops working for every account on a bad or duplicate one, so the alias is the user name in hex
+function _write_user_sudoers() {
+    local user="$1" alias tmp
+    alias="SWIZZIN_$(printf %s "$user" | od -An -tx1 | tr -d ' 
+' | tr a-f A-F)"
+    # sudo skips files with a dot in their name, so the draft is never read before it is checked
+    tmp=$(mktemp /etc/sudoers.d/.swizzin.XXXXXX) || return 1
+    cat > "$tmp" << SUD
+Cmnd_Alias   ${alias} = /bin/systemctl stop flood@${user}, /bin/systemctl restart flood@${user}, /bin/systemctl start flood@${user}, /bin/systemctl start rtorrent@${user}, /bin/systemctl stop rtorrent@${user}, /bin/systemctl restart rtorrent@${user}, /bin/systemctl start deluged@${user}, /bin/systemctl stop deluged@${user}, /bin/systemctl restart deluged@${user}, /bin/systemctl start deluge-web@${user}, /bin/systemctl stop deluge-web@${user}, /bin/systemctl restart deluge-web@${user}, /bin/systemctl start irssi@${user}, /bin/systemctl stop irssi@${user}, /bin/systemctl restart irssi@${user}, /bin/systemctl start qbittorrent@${user}, /bin/systemctl stop qbittorrent@${user}, /bin/systemctl restart qbittorrent@${user}, /usr/local/bin/swizzin/box chpasswd ${user}
+
+${user}     ALL = (ALL) NOPASSWD: ${alias}
+SUD
+    if ! visudo -cqf "$tmp" > /dev/null 2>&1; then
+        rm -f "$tmp"
+        echo_error "The sudo rule for $user is invalid and was not installed"
+        return 1
+    fi
+    chmod 440 "$tmp"
+    mv -f "$tmp" /etc/sudoers.d/"$user"
+}
+export -f _write_user_sudoers
+
+# Web login files: nginx reads them as the www-data user, the panel also reads /etc/htpasswd as swizzin.
+# Every swizzin user is in the www-data group, so the group gets nothing and each reader is named in an ACL.
+# The ACL and the mode are set in one step: a file closed without its ACL would lock everyone out of the web
+# shellcheck disable=SC2154 # log is exported by globals.sh
+function _htpasswd_perms() {
+    local f
+    for f in "$@"; do
+        if [[ $f == /etc/htpasswd && -f /install/.panel.lock ]]; then
+            setfacl --set u::rw,g::-,o::-,u:www-data:r,u:swizzin:r "$f" >> "$log" 2>&1
+        else
+            setfacl --set u::rw,g::-,o::-,u:www-data:r "$f" >> "$log" 2>&1
+        fi || {
+            echo_warn "Could not set an ACL on $f, it stays readable as before"
+            continue
+        }
+        chown root:root "$f"
+    done
+}
+export -f _htpasswd_perms

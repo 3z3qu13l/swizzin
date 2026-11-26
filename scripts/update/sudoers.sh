@@ -30,6 +30,18 @@ for u in "${users[@]}"; do
     fi
 done
 
+# A user name with a dash gave an alias sudo rejects, which stops sudo for every account.
+# Every per-user rule swizzin wrote is checked, also for accounts no longer in /etc/htpasswd
+for f in /etc/sudoers.d/*; do
+    u=${f##*/}
+    [[ $u == *.* ]] && continue
+    grep -qF "/usr/local/bin/swizzin/box chpasswd ${u}" "$f" || continue
+    if ! visudo -cqf "$f" > /dev/null 2>&1; then
+        echo_info "Rewriting the invalid sudo rule of $u"
+        _write_user_sudoers "$u"
+    fi
+done
+
 if [[ -f /etc/sudoers.d/panel ]]; then
     if grep -q -E "(sed|grep|box|drop_caches|set_interface|pkill|killall|reload|vnstat|ifstat|PACKAGECMNDS)" /etc/sudoers.d/panel; then
         echo_info "Fixing sudo permissions for panel"
