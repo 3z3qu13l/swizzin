@@ -12,7 +12,6 @@ function rutorrent_install() {
             echo_error "Failed to clone ruTorrent"
             exit 1
         }
-        chown -R www-data:www-data /srv/rutorrent
         rm -rf /srv/rutorrent/plugins/throttle
         rm -rf /srv/rutorrent/plugins/_cloudflare
         rm -rf /srv/rutorrent/plugins/dump
@@ -134,7 +133,7 @@ function rutorrent_install() {
 	);
 
 	$profilePath = '../../share';		// Path to user profiles
-	$profileMask = 0777;			// Mask for files and directory creation in user profiles.
+	$profileMask = 0770;			// Mask for files and directory creation in user profiles.
 						// Both Webserver and rtorrent users must have read-write access to it.
 						// For example, if Webserver and rtorrent users are in the same group then the value may be 0770.
 
@@ -148,6 +147,176 @@ function rutorrent_install() {
 	$enabledOrigins = array();		// List of enabled domains for CSRF check (only hostnames, without protocols, port etc.).
 					            	// If empty, then will retrieve domain from HTTP_HOST / HTTP_X_FORWARDED_HOST
 RUC
+}
+
+# ruTorrent's code belongs to root: owned by www-data, a PHP bug that writes files (path traversal, upload)
+# could rewrite php/initplugins.php, which every rTorrent runs as its user. A bug that runs code as www-data
+# still reaches every rTorrent: www-data drives them through their socket, which runs commands.
+# Each user's profile (share/users/<user>) and conf are shared by www-data and that user only, profiles were
+# 0777. A user can still place a link in their profile that ruTorrent follows into another's.
+# www-data and the users write share/users, so root never walks a profile: each account sets the ACL on its
+# own files, a link or hard link placed there then only reaches what that account could already change.
+function rutorrent_perms() {
+    local r=/srv/rutorrent
+    [[ -d $r && ! -L $r ]] || return 0
+    # box update and box rtx both call it
+    {
+        flock -w 600 9 || return 1
+        _rutorrent_perms
+    } 9> /run/swizzin-rutorrent-perms.lock
+}
+
+function _rutorrent_perms() {
+    local r=/srv/rutorrent g d u l t main_git="" theme=/srv/rutorrent/plugins/theme/themes/club-QuickBox theme_git="" probe tag
+    # without ACLs, share/users would end up closed to www-data: nothing is changed
+    probe=$(mktemp -p "$r") || return 1
+    if ! setfacl -m u:www-data:r "$probe" 2>> "$log"; then
+        rm -f "$probe"
+        echo_warn "ACLs do not work on $r, ruTorrent keeps its permissions"
+        return 1
+    fi
+    rm -f "$probe"
+
+    # git, run as root, must never use a .git folder www-data could prepare (hooks, fsmonitor...): those
+    # are dropped once the tree is root's, ruTorrent's own and the theme's cloned again below
+    local gits=()
+    readarray -d '' gits < <(find "$r" -path "$r/share" -prune -o -name .git ! -user root -prune -print0)
+    if [[ -d $r/.git && $(stat -c %U "$r/.git") != root ]]; then
+        # read as www-data, whose folder it is, and kept by root for another try if the fetch fails
+        tag=$(cd / && timeout 30 setpriv --reuid=www-data --regid=www-data --clear-groups -- git -c core.fsmonitor= -C "$r" describe --tags --abbrev=0 2> /dev/null)
+        if [[ $tag =~ ^v?[0-9][0-9A-Za-z.+-]*$ ]]; then echo "$tag" > /install/.rutorrent.tag; fi
+    fi
+
+    # one entry at a time from the top: a folder is root's, and no longer writable by others, before what it
+    # holds is changed, so nothing can be swapped under it. A file with other hard links may be one www-data
+    # placed there: it is replaced by a copy, which ends the link
+    find "$r" -path "$r/share" -prune -o -type f -links +1 \
+        -exec sh -c 'cp -p -- "$1" "$1.swizzin" && chown root:root -- "$1.swizzin" && chmod go-w -- "$1.swizzin" && mv -f -- "$1.swizzin" "$1"' sh {} \; \
+        -o -type f -links +1 -fprintf /dev/stderr 'Could not replace %p, which has other hard links\n' -o \
+        ! -user root \( -type l -exec chown -h root:root {} \; -o -exec chown root:root {} \; -exec chmod go-w {} \; \)
+    # a link out of the code could still lead to what www-data writes
+    while IFS= read -r -d '' l; do
+        t=$(readlink -f "$l")
+        if [[ $t != "$r/"* || $t == "$r/share" || $t == "$r/share/"* ]]; then
+            rm -f "$l"
+            echo_warn "Removed $l, it led out of ruTorrent's code to $t"
+        fi
+    done < <(find "$r" -path "$r/share" -prune -o -type l -print0)
+    for g in "${gits[@]}"; do
+        # a link swapped into the path before its folder became root's
+        [[ $(readlink -f "$g") == "$g" ]] || continue
+        if [[ $g == "$r/.git" ]]; then
+            # kept until the new one is there
+            main_git=1
+            continue
+        fi
+        [[ $g == "$theme/.git" ]] && theme_git=1
+        rm -rf "$g"
+    done
+    [[ -n $theme_git ]] && rm -rf "$theme"
+    find "$r" \( -path "$r/share" -o -path "$r/conf/users" \) -prune -o ! -type l \( -type d -o -links 1 \) \
+        \( ! -perm -a+r -o -perm /022 \) -exec chmod a+rX,go-w {} +
+    for d in "$r"/conf/users/*/; do
+        d=${d%/}
+        [[ -d $d && ! -L $d ]] || continue
+        u=${d##*/}
+        local acl="u:www-data:rX"
+        if id -u "$u" > /dev/null 2>&1; then acl+=",u:$u:rX"; fi
+        if ! { find "$d" ! -type l \( -type d -o -links 1 \) -exec chmod u=rwX,g=rX,o= {} + &&
+            find "$d" -type d -exec setfacl -P -m "$acl,${acl//u:/d:u:}" {} + &&
+            find "$d" -type f -links 1 -exec setfacl -P -m "$acl" {} +; }; then
+            echo_warn "Could not give www-data and $u access to $d"
+        fi
+    done
+    # both write the profile: www-data from the web, the user's rTorrent through initplugins.php
+    sed -i 's/^\(\s*\$profileMask\s*=\s*\)0777;/\10770;/' "$r/conf/config.php"
+
+    # share first, root's and closed to www-data: share/users can then no longer be swapped for a link
+    # while root changes it. share/users is sticky: www-data creates profiles but cannot replace a user's one
+    [[ -L $r/share ]] && rm -f "$r/share"
+    mkdir -p "$r/share"
+    chown -h root:root "$r/share"
+    chmod 0755 "$r/share"
+    setfacl -b "$r/share"
+    [[ -L $r/share/users ]] && rm -f "$r/share/users"
+    mkdir -p "$r/share/users"
+    chown -h root:root "$r/share/users"
+    chmod 1755 "$r/share/users"
+    setfacl -P -m u:www-data:rwx "$r/share/users" || echo_warn "Could not let www-data create ruTorrent profiles"
+    for u in $(_get_user_list); do
+        id -u "$u" > /dev/null 2>&1 || continue
+        d=$r/share/users/$u
+        [[ -L $d ]] && rm -f "$d"
+        if [[ ! -e $d ]] && ! (cd / && _as_www_data mkdir -m 0770 "$d" "$d"/settings "$d"/torrents "$d"/tmp); then
+            echo_warn "Could not create the ruTorrent profile of $u"
+        fi
+    done
+    for d in "$r"/share/users/*; do
+        [[ -L $d ]] && rm -f "$d"
+        [[ -d $d ]] || continue
+        u=${d##*/}
+        _rutorrent_profile_acl www-data "$u" "$d" || echo_warn "Could not close the ruTorrent profile $d to other users"
+        if id -u "$u" > /dev/null 2>&1; then
+            _rutorrent_profile_acl "$u" "$u" "$d" || echo_warn "Could not share the ruTorrent profile $d between $u and www-data"
+        fi
+    done
+
+    git config --global --unset-all safe.directory '^/srv/rutorrent/?$' 2> /dev/null
+    # also retried at the next run after a failed fetch, from the tag root kept
+    if [[ -n $main_git || -f /install/.rutorrent.tag ]]; then
+        if [[ -f /install/.rutorrent.tag ]]; then
+            _rutorrent_git_again "$(< /install/.rutorrent.tag)"
+        else
+            rm -rf "$r/.git"
+            echo_warn "ruTorrent's version could not be read, box rtx cannot restore its own plugins until ruTorrent is reinstalled"
+        fi
+    fi
+    if [[ -n $theme_git ]]; then
+        rutorrent_club_quickbox
+    fi
+}
+
+# ruTorrent's own .git, fetched again at tag $1, replaces the one www-data owned once it is there. Until then
+# there is none: root git never uses the old one
+function _rutorrent_git_again() {
+    local r=/srv/rutorrent tmp
+    tmp=$(mktemp -d -p /srv) || return 1
+    if [[ $1 =~ ^v?[0-9][0-9A-Za-z.+-]*$ ]] &&
+        GIT_TERMINAL_PROMPT=0 timeout 120 git clone -q --no-checkout --depth 1 -b "$1" https://github.com/Novik/ruTorrent.git "$tmp/r" >> "$log" 2>&1; then
+        rm -rf "$r/.git"
+        mv "$tmp/r/.git" "$r/.git"
+        rm -f /install/.rutorrent.tag
+    else
+        rm -rf "$r/.git"
+        echo_warn "ruTorrent's git data could not be fetched again, box rtx cannot restore its own plugins until the next box update"
+    fi
+    rm -rf "$tmp"
+}
+
+# Sets, as $1, the ACL on the files $1 owns in the profile $3 of user $2: www-data and $2 only. A file with
+# other hard links is left out
+function _rutorrent_profile_acl() {
+    local owner=$1 u=$2 d=$3 acl="u:www-data:rwX" dacl="d:u:www-data:rwX" run
+    if id -u "$u" > /dev/null 2>&1; then
+        acl+=",u:$u:rwX"
+        dacl+=",d:u:$u:rwX"
+    fi
+    acl+=",g::-,o::-"
+    dacl+=",d:g::-,d:o::-"
+    if [[ $owner == www-data ]]; then run=(_as_www_data); else run=(runuser -u "$owner" --); fi
+    (cd / && "${run[@]}" find -P "$d" -user "$owner" \( -type d -exec setfacl -P -m "$acl,$dacl" {} + \
+        -o -type f -links 1 -exec setfacl -P -m "$acl" {} + \)) 2>> "$log"
+}
+
+# True when rutorrent_perms has something to do
+function rutorrent_perms_needed() {
+    local r=/srv/rutorrent
+    [[ -d $r ]] || return 1
+    [[ -n $(find "$r" -path "$r/share" -prune -o \( ! -user root -o -type f -links +1 \) -print -quit) ]] ||
+        [[ $(stat -c %U "$r/share" 2> /dev/null) != root || $(stat -c %U "$r/share/users" 2> /dev/null) != root || ! -k $r/share/users ]] ||
+        ! getfacl -cp "$r/share/users" 2> /dev/null | grep -q '^user:www-data:rwx' ||
+        [[ -f /install/.rutorrent.tag ]] ||
+        grep -qE '^\s*\$profileMask\s*=\s*0777;' "$r/conf/config.php"
 }
 
 # Installs the club-QuickBox theme from GitHub, or from the copy kept in sources/vendor when GitHub cannot provide it

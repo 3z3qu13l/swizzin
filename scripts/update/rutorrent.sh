@@ -6,15 +6,23 @@ if [ -f /install/.rutorrent.lock ]; then
     sed -i 's/^\$defaultTheme = "club-QuickBox";/$defaultTheme = "";/' /srv/rutorrent/plugins/theme/conf.php 2> /dev/null
 
     cqbdir="/srv/rutorrent/plugins/theme/themes/club-QuickBox"
+    #shellcheck source=sources/functions/rutorrent
+    . /etc/swizzin/sources/functions/rutorrent
+    if rutorrent_perms_needed; then
+        # before the theme update below: git then runs as root on it
+        echo_progress_start "Giving ruTorrent's code to root and each profile to its user only"
+        rutorrent_perms
+        echo_progress_done
+    fi
+
     # Only a clone of its own: a copy without .git would make git act on /srv/rutorrent itself.
     # No credential prompt if the repository went private.
     if [[ -d $cqbdir/.git ]]; then
-        find "$cqbdir" -user root -exec chown www-data: {} \;
-        if timeout 60 sudo -u www-data env GIT_TERMINAL_PROMPT=0 git -C "$cqbdir" fetch >> $log 2>&1 &&
-            [[ ! $(sudo -u www-data git -C "$cqbdir" rev-parse HEAD) == $(sudo -u www-data git -C "$cqbdir" rev-parse @{u}) ]]; then
+        if timeout 60 env GIT_TERMINAL_PROMPT=0 git -C "$cqbdir" fetch >> $log 2>&1 &&
+            [[ ! $(git -C "$cqbdir" rev-parse HEAD) == $(git -C "$cqbdir" rev-parse @{u}) ]]; then
             echo_progress_start "Updating rutorrent theme"
-            sudo -u www-data git -C "$cqbdir" reset HEAD --hard >> $log 2>&1
-            timeout 60 sudo -u www-data env GIT_TERMINAL_PROMPT=0 git -C "$cqbdir" pull >> $log 2>&1
+            git -C "$cqbdir" reset HEAD --hard >> $log 2>&1
+            timeout 60 env GIT_TERMINAL_PROMPT=0 git -C "$cqbdir" pull >> $log 2>&1
             echo_progress_done
         fi
     elif [[ -d $cqbdir ]] && rm -rf "${cqbdir}.new" &&
@@ -22,7 +30,6 @@ if [ -f /install/.rutorrent.lock ]; then
         # the copy kept by swizzin was installed while GitHub was unavailable, switch back to GitHub
         echo_progress_start "Updating rutorrent theme from GitHub"
         rm -rf "${cqbdir}.old" && mv "$cqbdir" "${cqbdir}.old" && mv "${cqbdir}.new" "$cqbdir" && rm -rf "${cqbdir}.old"
-        chown -R www-data: "$cqbdir"
         echo_progress_done
     else
         rm -rf "${cqbdir}.new"
