@@ -6,8 +6,8 @@ dist_id="$(source /etc/os-release && echo "$ID")"
 while read -r app list keyring url <&3; do
     list=/etc/apt/sources.list.d/$list
     src=$list
-    # A source disabled by an earlier run is retried on every box update
-    [[ -f $src ]] || src=$list.disabled
+    # A source this script disabled earlier is retried on every box update; its own suffix leaves sources an admin disabled alone
+    [[ -f $src ]] || src=$list.swizzin.disabled
     # A list without signed-by (ombi on trixie) does not use the keyring
     grep -qs "signed-by=$keyring" "$src" || continue
     if [[ $src == "$list" ]] && gpg --show-keys "$keyring" > /dev/null 2>&1; then continue; fi
@@ -16,7 +16,7 @@ while read -r app list keyring url <&3; do
         [[ $src == "$list" ]] || mv "$src" "$list"
         echo_progress_done
     else
-        [[ $src == "$list" ]] && mv "$list" "$list.disabled"
+        [[ $src == "$list" ]] && mv "$list" "$list.swizzin.disabled"
         echo_warn "The $app signing key could not be downloaded, its apt source stays disabled. Run \`box update\` again later to retry"
     fi
 done 3<< EOF
