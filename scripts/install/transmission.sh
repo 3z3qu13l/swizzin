@@ -214,7 +214,10 @@ if [[ -n $1 ]]; then
     _setenv_transmission
     _mkdir_transmission
     _mkconf_transmission
-    _nginx_transmission
+    # an existing upstream is kept as is, the nginx script would restart every user's Transmission
+    if [[ ! -f /etc/nginx/conf.d/${user}.transmission.conf ]]; then
+        _nginx_transmission
+    fi
     _unsetenv_transmission
     _start_transmission
     exit 0
