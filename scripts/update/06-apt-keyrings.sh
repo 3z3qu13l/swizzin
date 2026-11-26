@@ -33,6 +33,7 @@ Plex plex.list /usr/share/keyrings/plexmediaserver.v2.gpg https://downloads.plex
 Syncthing syncthing.list /usr/share/keyrings/syncthing-archive-keyring.gpg https://syncthing.net/release-key.txt .syncthing.lock
 Webmin webmin.list /usr/share/keyrings/webmin-archive-keyring.gpg https://download.webmin.com/developers-key.asc .webmin.lock
 Ombi ombi.list /usr/share/keyrings/ombi-archive-keyring.gpg https://apt.ombi.app/pub.key .ombi.lock
+x2go x2go.list /usr/share/keyrings/x2go-archive-keyring.gpg https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x972FD88FA0BAFB578D0476DFE1F958385BFE2B6E .x2go.lock
 Temurin temurin.list /usr/share/keyrings/temurin-archive-keyring.gpg https://packages.adoptium.net/artifactory/api/gpg/key/public -
 NodeSource nodesource.list /etc/apt/keyrings/nodesource.gpg https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key -
 EOF

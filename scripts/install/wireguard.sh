@@ -76,8 +76,9 @@ Please consult the swizzin log for further info if required."
     systemctl daemon-reload -q
     echo_progress_done
 
-    echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
-    sysctl -p > /dev/null 2>&1
+    # its own file so box remove can drop it, and trixie no longer reads /etc/sysctl.conf at boot
+    echo "net.ipv4.ip_forward = 1" > /etc/sysctl.d/60-swizzin-wireguard.conf
+    sysctl -q -p /etc/sysctl.d/60-swizzin-wireguard.conf >> "$log" 2>&1
     echo "$wgiface" > /install/.wireguard.lock
     touch /install/.wireguard.lock
 }
