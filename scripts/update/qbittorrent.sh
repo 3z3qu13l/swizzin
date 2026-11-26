@@ -35,7 +35,10 @@ if [[ -f /install/.qbittorrent.lock ]]; then
         echo_progress_start "Restoring the qBittorrent config of $u"
         systemctl stop qbittorrent@"$u"
         nginxport=$(grep -oP '127\.0\.0\.1:\K[0-9]+' "/etc/nginx/conf.d/${u}.qbittorrent.conf" 2> /dev/null)
-        qbittorrent_user_config "$u"
+        if ! qbittorrent_user_config "$u"; then
+            [[ $active == "active" ]] && systemctl start qbittorrent@"$u"
+            continue
+        fi
         # keep the port nginx already proxies to, the nginx script would restart every user's qBittorrent
         if [[ -n $nginxport ]]; then
             runuser -u "$u" -- sed -i -e "s|^WebUI\\\\Port=.*|WebUI\\\\Port=${nginxport}|" -e 's|^WebUI\\Address=.*|WebUI\\Address=127.0.0.1|' "$conf"

@@ -735,7 +735,7 @@ function qbittorrent_user_config() {
     # only reaches their own files, where a root mkdir, chown or write would follow it anywhere
     runuser -u "${user}" -- mkdir -p /home/${user}/.config/qBittorrent /home/${user}/torrents/qbittorrent
     runuser -u "${user}" -- rm -f /home/${user}/.config/qBittorrent/qBittorrent.conf
-    runuser -u "${user}" -- tee /home/${user}/.config/qBittorrent/qBittorrent.conf > /dev/null << QBTCONF
+    runuser -u "${user}" -- tee /home/${user}/.config/qBittorrent/qBittorrent.conf > /dev/null << QBTCONF || {
 [BitTorrent]
 Session\DisableAutoTMMByDefault=false
 
@@ -763,13 +763,16 @@ WebUI\SessionTimeout=3600
 WebUI\UseUPnP=true
 WebUI\Username=${user}
 QBTCONF
+        echo_error "Cannot write the qBittorrent config of ${user}"
+        return 1
+    }
 }
 
 # Prints a WebUI setting of a user: qBittorrent 5.3 moves WebUI\Key in [Preferences] to Key in [WebUI].
 # Read as the user: the file is theirs and may be a symlink to anything
 function qbittorrent_webui_setting() {
     # [WebUI] wins: the one 5.3 reads if a stale [Preferences] key is left behind
-    runuser -u "$1" -- awk -F= -v k="$2" '/^\[/ {s = $0} s == "[WebUI]" && $1 == k {print $2; f = 1; exit} s == "[Preferences]" && $1 == "WebUI\\" k && !o {o = 1; v = $2} END {if (!f && o) print v}' "/home/$1/.config/qBittorrent/qBittorrent.conf" 2> /dev/null
+    runuser -u "$1" -- timeout 5 awk -F= -v k="$2" '/^\[/ {s = $0} s == "[WebUI]" && $1 == k {print $2; f = 1; exit} s == "[Preferences]" && $1 == "WebUI\\" k && !o {o = 1; v = $2} END {if (!f && o) print v}' "/home/$1/.config/qBittorrent/qBittorrent.conf" 2> /dev/null
 }
 
 function qbittorrent_chpasswd() {

@@ -16,7 +16,7 @@ users=($(_get_user_list))
 
 if [[ -n $1 ]]; then
     user=$1
-    qbittorrent_user_config ${user}
+    qbittorrent_user_config ${user} || exit 1
     if [[ -f /install/.nginx.lock ]]; then
         echo_progress_start "Configuring nginx"
         bash /etc/swizzin/scripts/nginx/qbittorrent.sh
@@ -57,7 +57,7 @@ esac
 qbittorrent_service
 for user in ${users[@]}; do
     echo_progress_start "Enabling qbittorrent for $user"
-    qbittorrent_user_config ${user}
+    qbittorrent_user_config ${user} || continue
     systemctl enable -q --now qbittorrent@${user} 2>&1 | tee -a $log
     echo_progress_done "Started qbt for $user"
 done

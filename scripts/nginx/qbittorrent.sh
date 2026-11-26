@@ -66,6 +66,11 @@ fi
 
 for user in ${users[@]}; do
     port=$(qbittorrent_webui_setting "$user" Port)
+    # the user can edit their config: only a port number goes into nginx
+    if [[ ! $port =~ ^[0-9]{1,5}$ ]]; then
+        echo_warn "qBittorrent of ${user} has no valid WebUI port, it is not added to nginx"
+        continue
+    fi
     cat > /etc/nginx/conf.d/${user}.qbittorrent.conf << QBTUC
 upstream ${user}.qbittorrent {
   server 127.0.0.1:${port};

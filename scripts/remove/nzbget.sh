@@ -9,7 +9,8 @@ for u in "${users[@]}"; do
     # Only finished, unfinished and queued nzb files count, its log is written there too
     d=/home/$u/nzbget/downloads
     if [[ -n $(find "$d/completed" "$d/intermediate" "$d/nzb" -type f -print -quit 2> /dev/null) ]]; then
-        find /home/$u/nzbget -mindepth 1 -maxdepth 1 ! -name downloads -exec rm -rf {} +
+        # as the user: a root rm given these paths would follow ~/nzbget if the user swapped it for a link meanwhile
+        (cd / && runuser -u "$u" -- find /home/$u/nzbget -mindepth 1 -maxdepth 1 ! -name downloads -exec rm -rf {} +)
         echo_info "The NZBGet downloads of $u are kept in /home/$u/nzbget/downloads"
     else
         rm -rf /home/$u/nzbget
