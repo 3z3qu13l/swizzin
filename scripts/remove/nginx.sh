@@ -23,6 +23,7 @@ rm -rf /etc/php
 rutorrent_remove_account
 rm_if_exists "/install/.rutorrent.nosymfollow.failed"
 rm_if_exists "/install/.rutorrent.nginx-deny.failed"
+rm -f /install/.rutorrent.nginx-php.failed /install/.rutorrent.tag /install/.rutorrent.account.foreign
 # rm would empty the profiles through the mount
 if rutorrent_profiles_unmount; then rm_if_exists "/srv/rutorrent"; else echo_warn "/srv/rutorrent/share/users is still mounted, /srv/rutorrent was kept"; fi
 rm_if_exists "/install/.rutorrent.lock"
