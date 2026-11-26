@@ -56,7 +56,9 @@ if [ -f /install/.rutorrent.lock ]; then
             echo_log_only "ruTorrent fastcgi_split_path_info triggers nginx reload"
             reloadnginx=1
         fi
-        if ! grep -qF 'rutorrent/(conf|share)/' /etc/nginx/apps/rutorrent.conf; then
+        # not tried again on a conf it could not change, until that conf changes
+        if ! grep -qF 'rutorrent/(conf|share)/' /etc/nginx/apps/rutorrent.conf &&
+            [[ $(cat /install/.rutorrent.nginx-deny.failed 2> /dev/null) != "$(md5sum < /etc/nginx/apps/rutorrent.conf)" ]]; then
             echo_progress_start "Closing ruTorrent's profiles to the web"
             deny=$(mktemp)
             bak=$(mktemp)
@@ -68,6 +70,7 @@ if [ -f /install/.rutorrent.lock ]; then
                 reloadnginx=1
             else
                 cat "$bak" > /etc/nginx/apps/rutorrent.conf
+                md5sum < /etc/nginx/apps/rutorrent.conf > /install/.rutorrent.nginx-deny.failed
                 echo_warn "Could not close /rutorrent/share and /rutorrent/conf in /etc/nginx/apps/rutorrent.conf, add the rule yourself: $(rutorrent_nginx_deny | tr -s ' \n' ' ')"
             fi
             rm -f "$deny" "$bak"

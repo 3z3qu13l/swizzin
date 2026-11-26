@@ -23,9 +23,7 @@ function rutorrent_install() {
     fi
 
     echo_progress_start "Cloning some popular themes and plugins"
-    sed -i 's/useExternal = false;/useExternal = "mktorrent";/' /srv/rutorrent/plugins/create/conf.php
-    sed -i 's/pathToCreatetorrent = '\'\''/pathToCreatetorrent = '\''\/usr\/bin\/mktorrent'\''/' /srv/rutorrent/plugins/create/conf.php
-    sed -i "s/\$pathToExternals\['sox'\] = ''/\$pathToExternals\['sox'\] = '\/usr\/bin\/sox'/g" /srv/rutorrent/plugins/spectrogram/conf.php
+    rutorrent_plugin_confs
 
     . /etc/swizzin/sources/functions/utils
     install_rar
@@ -60,7 +58,12 @@ function rutorrent_install() {
         rutorrent_fix_quota
     fi
 
-    cat > /srv/rutorrent/conf/config.php << 'RUC'
+    rutorrent_config_php > /srv/rutorrent/conf/config.php
+}
+
+# ruTorrent's main settings, as swizzin writes them
+function rutorrent_config_php() {
+    cat << 'RUC'
 <?php
 	// configuration parameters
 
@@ -147,6 +150,14 @@ function rutorrent_install() {
 	$enabledOrigins = array();		// List of enabled domains for CSRF check (only hostnames, without protocols, port etc.).
 					            	// If empty, then will retrieve domain from HTTP_HOST / HTTP_X_FORWARDED_HOST
 RUC
+}
+
+# What swizzin sets in the configuration of ruTorrent's own plugins
+function rutorrent_plugin_confs() {
+    [[ -f /srv/rutorrent/plugins/create/conf.php ]] && sed -i 's/useExternal = false;/useExternal = "mktorrent";/' /srv/rutorrent/plugins/create/conf.php
+    [[ -f /srv/rutorrent/plugins/create/conf.php ]] && sed -i 's/pathToCreatetorrent = '\'\''/pathToCreatetorrent = '\''\/usr\/bin\/mktorrent'\''/' /srv/rutorrent/plugins/create/conf.php
+    [[ -f /srv/rutorrent/plugins/spectrogram/conf.php ]] && sed -i "s/\$pathToExternals\['sox'\] = ''/\$pathToExternals\['sox'\] = '\/usr\/bin\/sox'/g" /srv/rutorrent/plugins/spectrogram/conf.php
+    return 0
 }
 
 # ruTorrent's code belongs to root: owned by www-data, a PHP bug that writes files (path traversal, upload)
@@ -295,19 +306,30 @@ function _rutorrent_git_again() {
     rm -rf "$tmp"
 }
 
-# Code a www-data compromise changed before root took it over stays: the tracked files that differ from
-# release $1 are reported, but those swizzin rewrites itself and the writable profiles
+# Code a www-data compromise changed before root took it over stays. The plugin files swizzin changes are
+# written again from the release; conf/config.php, which an admin may have edited, is compared with
+# swizzin's. Then the tracked files that differ from release $1 and the added PHP files (and .user.ini) are
+# reported. Not checked: the plugins and themes swizzin and rtx clone from elsewhere (file manager,
+# ratiocolor, geoip2, club-QuickBox...), and the writable profiles
 function _rutorrent_report_changes() {
-    local changed
+    local changed f r=/srv/rutorrent
     # --no-checkout left the index empty: filled from the release, the files are left as they are
     rutorrent_git reset -q >> "$log" 2>&1 || return 0
+    for f in plugins/create/conf.php plugins/spectrogram/conf.php plugins/diskspace/action.php; do
+        # a plugin removed with box rtx stays removed
+        [[ -d $r/${f%/*} ]] && rutorrent_git checkout -q -- "$f" >> "$log" 2>&1
+    done
+    rutorrent_plugin_confs
+    if [[ -f /install/.quota.lock ]]; then rutorrent_fix_quota; fi
+    if [[ $(< "$r/conf/config.php") != "$(rutorrent_config_php)" ]]; then
+        echo_warn "$r/conf/config.php is not the one swizzin writes: check it, or write it again as root with: bash -c '. /etc/swizzin/sources/functions/rutorrent; rutorrent_config_php > $r/conf/config.php'"
+    fi
     changed=$(rutorrent_git diff --name-only --diff-filter=MT -- . ':!share' ':!conf/users' ':!conf/config.php' \
-        ':!plugins/create/conf.php' ':!plugins/spectrogram/conf.php' ':!plugins/diskspace/action.php' ':!plugins/theme/conf.php' 2>> "$log")
+        ':!plugins/create/conf.php' ':!plugins/spectrogram/conf.php' ':!plugins/diskspace/action.php' 2>> "$log")
     if [[ -n $changed ]]; then
         echo_warn "These ruTorrent files differ from its release $1, check them or reinstall ruTorrent: ${changed//$'\n'/, }"
     fi
-    # added code: PHP files the release does not have, but in the plugins and themes swizzin and rtx add
-    changed=$(rutorrent_git ls-files --others -- '*.php' ':!share' ':!conf/users' ':!plugins/filemanager*' ':!plugins/fileshare' \
+    changed=$(rutorrent_git ls-files --others -- '*.php' '*.user.ini' ':!share' ':!conf/users' ':!plugins/filemanager*' ':!plugins/fileshare' \
         ':!plugins/ratiocolor' ':!plugins/geoip2' ':!plugins/mobile' ':!plugins/pausewebui' ':!plugins/theme/themes' 2>> "$log")
     if [[ -n $changed ]]; then
         echo_warn "These PHP files are not part of ruTorrent $1, check them or reinstall ruTorrent: ${changed//$'\n'/, }"
@@ -323,11 +345,11 @@ function rutorrent_git() {
 
 # A user can place a link in their own profile that ruTorrent would follow into another user's: share/users
 # is mounted again over itself without following links (Linux 5.10+). Where it cannot be, that is recorded
-# and said once
+# with the kernel's version and said once: tried again after a kernel change
 function _rutorrent_profiles_nosymfollow() {
     local d=/srv/rutorrent/share/users unit=srv-rutorrent-share-users.mount
     _rutorrent_nosymfollow_on && return 0
-    [[ -f /install/.rutorrent.nosymfollow.failed ]] && return 0
+    [[ $(cat /install/.rutorrent.nosymfollow.failed 2> /dev/null) == "$(uname -r)" ]] && return 0
     cat > /etc/systemd/system/$unit << EOF
 [Unit]
 Description=ruTorrent profiles, links in them are not followed
@@ -344,9 +366,13 @@ WantedBy=local-fs.target
 EOF
     systemctl daemon-reload
     systemctl enable -q --now "$unit" >> "$log" 2>&1
-    _rutorrent_nosymfollow_on && return 0
+    if _rutorrent_nosymfollow_on; then
+        rm -f /install/.rutorrent.nosymfollow.failed
+        return 0
+    fi
     rutorrent_profiles_unmount
-    touch /install/.rutorrent.nosymfollow.failed
+    systemctl reset-failed "$unit" > /dev/null 2>&1
+    uname -r > /install/.rutorrent.nosymfollow.failed
     echo_warn "$d could not be mounted without following links (Linux 5.10 or later): a user can still place a link in their ruTorrent profile that ruTorrent follows into another user's"
 }
 
@@ -354,13 +380,17 @@ function _rutorrent_nosymfollow_on() {
     findmnt -rno OPTIONS --mountpoint /srv/rutorrent/share/users 2> /dev/null | grep -qE '(^|,)nosymfollow(,|$)'
 }
 
-# Before /srv/rutorrent is removed: rm cannot remove a mount point
+# Before /srv/rutorrent is removed: rm would empty the profiles through the mount and fail on its point.
+# Fails when it is still mounted
 function rutorrent_profiles_unmount() {
-    local unit=srv-rutorrent-share-users.mount
-    [[ -f /etc/systemd/system/$unit ]] || return 0
-    systemctl disable -q --now "$unit" >> "$log" 2>&1
-    rm -f /etc/systemd/system/$unit
-    systemctl daemon-reload
+    local unit=srv-rutorrent-share-users.mount d=/srv/rutorrent/share/users
+    if [[ -f /etc/systemd/system/$unit ]]; then
+        systemctl disable -q --now "$unit" >> "$log" 2>&1
+        rm -f /etc/systemd/system/$unit
+        systemctl daemon-reload
+    fi
+    if mountpoint -q "$d"; then umount -l "$d" >> "$log" 2>&1; fi
+    ! mountpoint -q "$d"
 }
 
 # Sets, as $1, the ACL on the files $1 owns in the profile $3 of user $2: www-data and $2 only. A file with
@@ -387,7 +417,7 @@ function rutorrent_perms_needed() {
         ! getfacl -cp "$r/share/users" 2> /dev/null | grep -q '^user:www-data:rwx' ||
         [[ -f /install/.rutorrent.tag ]] ||
         grep -qE '^\s*\$profileMask\s*=\s*0777;' "$r/conf/config.php" ||
-        { ! _rutorrent_nosymfollow_on && [[ ! -f /install/.rutorrent.nosymfollow.failed ]]; }
+        { ! _rutorrent_nosymfollow_on && [[ $(cat /install/.rutorrent.nosymfollow.failed 2> /dev/null) != "$(uname -r)" ]]; }
 }
 
 # Installs the club-QuickBox theme from GitHub, or from the copy kept in sources/vendor when GitHub cannot provide it
