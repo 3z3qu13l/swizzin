@@ -29,6 +29,11 @@ for u in "${users[@]}"; do
 
     if [[ ! -f /etc/nginx/conf.d/${u}.nzbget.conf ]]; then
         NZBPORT=$(grep ControlPort /home/$u/nzbget/nzbget.conf | cut -d= -f2)
+        # the user can edit their config: only a port number goes into nginx
+        if [[ ! $NZBPORT =~ ^[0-9]{1,5}$ ]]; then
+            echo_warn "NZBGet of ${u} has no valid ControlPort, it is not added to nginx"
+            continue
+        fi
         cat > /etc/nginx/conf.d/${u}.nzbget.conf << NZBUPS
 upstream $u.nzbget {
   server 127.0.0.1:$NZBPORT;

@@ -28,20 +28,17 @@ function _install() {
             sed -i "s/ControlPort=6789/ControlPort=${port}/g" /home/$u/nzbget/nzbget.conf
             sed -i "s/SecurePort=6791/SecurePort=${secureport}/g" /home/$u/nzbget/nzbget.conf
         fi
+        # every user gets its certificate, not only the last one of the list
+        if [[ ! -d /home/$u/.ssl/ ]]; then
+            mkdir -p /home/$u/.ssl/
+        fi
+        . /etc/swizzin/sources/functions/ssl
+        create_self_ssl $u
+        sed -i "s/SecureControl=no/SecureControl=yes/g" /home/$u/nzbget/nzbget.conf
+        sed -i "s/SecureCert=/SecureCert=\/home\/$u\/.ssl\/$u-self-signed.crt/g" /home/$u/nzbget/nzbget.conf
+        sed -i "s/SecureKey=/SecureKey=\/home\/$u\/.ssl\/$u-self-signed.key/g" /home/$u/nzbget/nzbget.conf
         echo_progress_done "Nzbget installed for $u"
     done
-
-    if [[ ! -d /home/$u/.ssl/ ]]; then
-        mkdir -p /home/$u/.ssl/
-    fi
-
-    . /etc/swizzin/sources/functions/ssl
-
-    create_self_ssl $u
-
-    sed -i "s/SecureControl=no/SecureControl=yes/g" /home/$u/nzbget/nzbget.conf
-    sed -i "s/SecureCert=/SecureCert=\/home\/$u\/.ssl\/$u-self-signed.crt/g" /home/$u/nzbget/nzbget.conf
-    sed -i "s/SecureKey=/SecureKey=\/home\/$u\/.ssl\/$u-self-signed.key/g" /home/$u/nzbget/nzbget.conf
 
     if [[ -f /install/.nginx.lock ]]; then
         echo_progress_start "Configuring nginx"
@@ -53,7 +50,7 @@ function _install() {
     fi
 
     echo_progress_start "Enabling nzbget for all users"
-    for u in ${users}; do
+    for u in "${users[@]}"; do
         systemctl enable -q nzbget@$u 2>&1 | tee -a $log
         systemctl start nzbget@$u
     done
@@ -65,7 +62,7 @@ function _cleanup() {
     rm -rf nzbget-latest-bin-linux.run
 }
 
-users=$(_get_user_list)
+mapfile -t users < <(_get_user_list)
 master=$(_get_master_username)
 noexec=$(grep "/tmp" /etc/fstab | grep noexec)
 
