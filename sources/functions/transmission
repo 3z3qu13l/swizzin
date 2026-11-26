@@ -65,3 +65,65 @@ function _install_transmission() {
     systemctl disable -q --now transmission-daemon >> "$log" 2>&1
     echo_progress_done
 }
+
+# Ubuntu 26.04+ enforces an AppArmor profile on transmission-daemon that only allows /var/lib/transmission-daemon:
+# swizzin's daemons could not read their settings.json and ran on their defaults.
+# Arguments: the users' absolute data folders. A folder in a home allows its top folder in every home.
+function _apparmor_transmission() {
+    local profile=/etc/apparmor.d/transmission override=/etc/apparmor.d/local/transmission-daemon
+    [[ -f $profile ]] || return 0
+    # No owner qualifier: the daemon runs as the user, file permissions already limit it to what the user may use
+    local rules=('"@{HOME}/.config/transmission-daemon/{,**}" rw,')
+    local safe='^/[A-Za-z0-9 ._+/-]*$'
+    local dir path top rule unit
+    for dir in "$@"; do
+        [[ -n $dir ]] || continue
+        # the path goes into the profile: anything AppArmor could read as syntax is left out
+        if [[ ! $dir =~ $safe ]]; then
+            echo_warn "Transmission folder $dir not allowed in AppArmor: unsupported characters"
+            continue
+        fi
+        # AppArmor checks the resolved path: a symlinked folder needs its target too
+        for path in "$dir" "$(realpath -m "$dir")"; do
+            [[ $path =~ $safe ]] || continue
+            if [[ $path =~ ^/home/[^/]+/?(.*)$ ]]; then
+                top=${BASH_REMATCH[1]%%/*}
+                rules+=("\"@{HOME}/${top}${top:+/}{,**}\" rw,")
+            else
+                rules+=("\"${path%/}/{,**}\" rw,")
+            fi
+        done
+    done
+    local missing=()
+    for rule in "${rules[@]}"; do
+        grep -qxF "$rule" "$override" 2> /dev/null || missing+=("$rule")
+    done
+    [[ ${#missing[@]} -eq 0 ]] && return 0
+
+    echo_progress_start "Allowing Transmission to use the users' folders in AppArmor"
+    local backup existed=""
+    backup=$(mktemp)
+    [[ -f $override ]] && existed=1 && cp "$override" "$backup"
+    printf '%s\n' "${missing[@]}" | sort -u >> "$override"
+    if ! apparmor_parser -QT "$profile" >> "$log" 2>&1; then
+        if [[ -n $existed ]]; then cp "$backup" "$override"; else rm -f "$override"; fi
+        rm -f "$backup"
+        echo_warn "AppArmor rejected the Transmission rules, see $log"
+        return 0
+    fi
+    rm -f "$backup"
+    # a profile the admin disabled, or AppArmor off, needs no reload
+    if grep -q '^transmission-daemon ' /sys/kernel/security/apparmor/profiles 2> /dev/null; then
+        # A daemon running on its defaults saves them over settings.json when stopped: stop it while still denied
+        local running
+        readarray -t running < <(systemctl list-units 'transmission@*' --state=active --plain --no-legend | awk '{print $1}')
+        for unit in "${running[@]}"; do
+            systemctl stop "$unit"
+        done
+        apparmor_parser -r "$profile" >> "$log" 2>&1 || echo_warn "AppArmor could not reload the Transmission profile, see $log"
+        for unit in "${running[@]}"; do
+            systemctl start "$unit"
+        done
+    fi
+    echo_progress_done
+}
