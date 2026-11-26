@@ -264,30 +264,51 @@ function _htpasswd_perms() {
 }
 export -f _htpasswd_perms
 
-# Homes are 750 and www-data (nginx, PHP) is in no user's group: it only crosses the home, and so does
-# the panel (group swizzin), to read the free space of disks mounted inside it.
+# Homes are 750 and www-data (nginx, PHP) is in no user's group. It may list the home, for ruTorrent's
+# folder picker, but what is inside keeps its own permissions; the panel (group swizzin) only crosses it,
+# to read the free space of disks mounted inside it.
 # setfacl runs as the user: a symlink they placed in their home never makes root change another file
 function _home_acl() {
-    local acl=u:www-data:x
+    local acl=u:www-data:rx
     if getent group swizzin > /dev/null; then acl+=,g:swizzin:x; fi
     (cd / && runuser -u "$1" -- setfacl -P -m "$acl" "/home/$1")
 }
 export -f _home_acl
 
-# A folder nginx lists for its user ($2, relative to the home, e.g. torrents/rtorrent): www-data crosses
-# its parents and reads it, and the default entry keeps what is downloaded there later readable.
-# A missing folder is skipped, there is nothing to serve
+# Runs a command as nginx and PHP do once they are in no user's group
+function _as_www_data() {
+    setpriv --reuid=www-data --regid=www-data --clear-groups -- "$@"
+}
+export -f _as_www_data
+
+# A folder nginx lists for its user ($2, relative to the home, e.g. torrents/rtorrent): www-data lists its
+# parents and reads it, and the default entry keeps what is downloaded there later readable. A folder
+# linked elsewhere gets it on its target. Only what the user owns is changed, and never on another disk
+# mounted inside (rclone, FUSE). A missing folder is skipped, there is nothing to serve.
+# Prints what it skipped, and fails with the reason when www-data still cannot read the folder
 function _www_acl_served() {
-    local u=$1 dir=/home/$1/$2 parent
-    [[ -d $dir ]] || return 0
+    local u=$1 dir=/home/$1/$2 parent p other mp prune=()
+    [[ -e $dir || -L $dir ]] || return 0
     parent=${dir%/*}
     (
         cd / || exit 1
+        # a folder of another owner (a disk an admin linked there) keeps its permissions, checked at the end
         while [[ $parent == "/home/$u" || $parent == "/home/$u/"* ]]; do
-            runuser -u "$u" -- setfacl -P -m u:www-data:x "$parent" || exit 1
+            p=$(readlink -f "$parent")
+            if [[ $(stat -c %U "$p") == "$u" ]]; then runuser -u "$u" -- setfacl -P -m u:www-data:rx "$p" || exit 1; fi
             parent=${parent%/*}
         done
-        runuser -u "$u" -- setfacl -P -R -m u:www-data:rX,d:u:www-data:rX "$dir"
+        if [[ -L $dir ]]; then dir=$(readlink -f "$dir"); fi
+        while read -r mp; do
+            if [[ $mp == "$dir/"* ]]; then prune+=(-path "$mp" -prune -o); fi
+        done < <(findmnt -rno TARGET)
+        runuser -u "$u" -- find "$dir" -xdev "${prune[@]}" -user "$u" ! -type l \( -type d -exec setfacl -P -m u:www-data:rx,d:u:www-data:rX {} + -o -exec setfacl -P -m u:www-data:rX {} + \) || exit 1
+        other=$(find "$dir" -xdev "${prune[@]}" ! -user "$u" -print -quit)
+        if [[ -n $other ]]; then echo "$other is not owned by $u, it keeps its own permissions"; fi
+        _as_www_data test -r "$dir" -a -x "$dir" || {
+            echo "www-data still cannot read $dir"
+            exit 1
+        }
     )
 }
 export -f _www_acl_served
