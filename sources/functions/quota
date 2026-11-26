@@ -2,13 +2,19 @@
 
 # Sudo rules letting the web server read the disk quotas
 function quota_sudoers() {
-    local tmp=/etc/sudoers.d/quota.tmp
-    local rules="Cmnd_Alias   QUOTA = /usr/bin/quota
-
-www-data     ALL = (ALL) NOPASSWD: QUOTA"
+    local tmp=/etc/sudoers.d/quota.tmp who=(www-data) w rules defaults=()
+    # ruTorrent's own account, as swizzin created it: its diskspace plugin calls quota at every refresh
+    if [[ -f /install/.rutorrent.account && $(id -u rutorrent 2> /dev/null) == "$(< /install/.rutorrent.account)" ]]; then who+=(rutorrent); fi
+    rules="Cmnd_Alias   QUOTA = /usr/bin/quota
+"
+    for w in "${who[@]}"; do
+        rules+="
+$w     ALL = (ALL) NOPASSWD: QUOTA"
+        defaults+=("Defaults:$w !logfile" "Defaults:$w !syslog" "Defaults:$w !pam_session")
+    done
     # keep the web server's frequent sudo calls out of the auth log where sudo allows it
     # (sudo-rs, on Ubuntu 26.04, does not know these settings)
-    printf '%s\n' "Defaults:www-data !logfile" "Defaults:www-data !syslog" "Defaults:www-data !pam_session" "" "$rules" > "$tmp" && chmod 0440 "$tmp"
+    printf '%s\n' "${defaults[@]}" "" "$rules" > "$tmp" && chmod 0440 "$tmp"
     local written=$?
     if [[ $written -eq 0 ]] && ! visudo -cqf "$tmp" > /dev/null 2>&1; then
         printf '%s\n' "$rules" > "$tmp"

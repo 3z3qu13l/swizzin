@@ -8,10 +8,14 @@ if [ -f /install/.rutorrent.lock ]; then
     cqbdir="/srv/rutorrent/plugins/theme/themes/club-QuickBox"
     #shellcheck source=sources/functions/rutorrent
     . /etc/swizzin/sources/functions/rutorrent
-    if rutorrent_perms_needed; then
-        # before the theme update below: git then runs as root on it
-        echo_progress_start "Giving ruTorrent's code to root and each profile to its user only"
-        rutorrent_perms
+    #shellcheck source=sources/functions/php
+    . /etc/swizzin/sources/functions/php
+    #shellcheck source=sources/functions/rtorrent
+    . /etc/swizzin/sources/functions/rtorrent
+    # also after a PHP version change, and before the theme update below: git then runs as root on it
+    if rutorrent_setup_needed; then
+        echo_progress_start "Running ruTorrent's PHP under its own account, its code root's, each profile its user's"
+        rutorrent_setup
         echo_progress_done
     fi
 

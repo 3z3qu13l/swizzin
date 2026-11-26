@@ -19,6 +19,8 @@ fi
 #shellcheck source=sources/functions/utils
 . /etc/swizzin/sources/functions/utils
 #shellcheck source=sources/functions/rtorrent
+. /etc/swizzin/sources/functions/rtorrent
+#shellcheck source=sources/functions/rutorrent
 . /etc/swizzin/sources/functions/rutorrent
 
 if [[ ! -f /install/.rutorrent.lock ]]; then
@@ -28,7 +30,7 @@ rutorrent_nginx_config
 rutorrent_user_config
 
 restart_php_fpm
-rutorrent_perms
+rutorrent_setup
 echo_progress_start "Reloading nginx"
 systemctl reload nginx >> $log 2>&1
 echo_progress_done

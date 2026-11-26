@@ -467,6 +467,8 @@ function _deluser() {
                     if [[ ! -f /install/.rutorrent.lock ]]; then touch /install/.rutorrent.lock; fi
                     rm -rf /srv/rutorrent/conf/users/${user}
                     rm -rf /srv/rutorrent/share/users/${user}
+                    # a later account given this uid would cross share/users
+                    setfacl -x "u:${user}" /srv/rutorrent/share/users 2> /dev/null
                     ;;
                 wireguard)
                     rm -rf /home/${user}/.wireguard

@@ -467,28 +467,71 @@ function remove_rtorrent_legacy() {
     rm -rf /tmp/libtorrent
 }
 
-# ruTorrent (PHP) and nginx talk to the socket as www-data, which is in no user's group: a named ACL on
-# /run/<user>, kept by tmpfiles at boot, whose default entry the socket recreated at each start inherits.
-# The socket already there is changed as the user: they could have swapped it for a link to any file
+# nginx (the /<user> XMLRPC location) talks to the socket as www-data and ruTorrent's PHP as rutorrent, both
+# in no user's group: named entries on /run/<user>, kept by tmpfiles at boot, whose default entries the
+# socket recreated at each start inherits. The socket already there is changed as the user: they could
+# have swapped it for a link to any file
 function rtorrent_socket_acl() {
-    local u=$1 line
-    line="a+ /run/${u} - - - - u:www-data:x,d:u:www-data:rw"
-    [[ -f /etc/tmpfiles.d/${u}.conf ]] || echo "D /run/${u} 0750 ${u} ${u} -" > /etc/tmpfiles.d/"${u}".conf
-    grep -qxF "$line" /etc/tmpfiles.d/"${u}".conf 2> /dev/null || echo "$line" >> /etc/tmpfiles.d/"${u}".conf
-    systemd-tmpfiles --create /etc/tmpfiles.d/"${u}".conf >> "$log" 2>&1
+    local u=$1 line acl="u:www-data:x,d:u:www-data:rw" sacl="u:www-data:rw" f=/etc/tmpfiles.d/${1}.conf
+    if rutorrent_account_ok; then
+        acl+=",u:rutorrent:x,d:u:rutorrent:rw"
+        sacl+=",u:rutorrent:rw"
+    fi
+    line="a+ /run/${u} - - - - $acl"
+    [[ -f $f ]] || echo "D /run/${u} 0750 ${u} ${u} -" > "$f"
+    if ! grep -qxF "$line" "$f"; then
+        # tmpfiles takes one line per path and kind
+        sed -i "\|^a+ /run/${u} |d" "$f"
+        echo "$line" >> "$f"
+    fi
+    systemd-tmpfiles --create "$f" >> "$log" 2>&1
     if [[ -S /run/${u}/.rtorrent.sock ]]; then
-        (cd / && runuser -u "$u" -- setfacl -P -m u:www-data:rw /run/"${u}"/.rtorrent.sock) >> "$log" 2>&1
+        (cd / && runuser -u "$u" -- setfacl -P -m "$sacl" /run/"${u}"/.rtorrent.sock) >> "$log" 2>&1
     fi
 }
 
-# ruTorrent (Get .torrent, edit, retrackers) reads <hash>.torrent in the session folder as www-data: a named
-# entry and its default, rTorrent writes each file anew so it inherits it. From 0.16.25 they are written
+# The account rutorrent, as swizzin created it (rutorrent_account records its uid): any other account of
+# that name gets nothing
+function rutorrent_account_ok() {
+    local uid
+    uid=$(id -u rutorrent 2> /dev/null) && [[ -f /install/.rutorrent.account && $uid == "$(< /install/.rutorrent.account)" ]]
+}
+
+# The account ruTorrent's PHP runs as: rutorrent once nginx sends it to its own pool (rutorrent_nginx_php
+# only does after the pool answered), www-data before
+function rutorrent_web_account() {
+    if rutorrent_account_ok && grep -qs 'fastcgi_pass unix:/run/php-fpm-rutorrent.sock;' /etc/nginx/apps/rutorrent.conf; then
+        echo rutorrent
+    else
+        echo www-data
+    fi
+}
+
+# ruTorrent (Get .torrent, edit, retrackers) reads <hash>.torrent in the session folder as its account: a
+# named entry and its default, rTorrent writes each file anew so it inherits it. From 0.16.25 they are written
 # 0600, which no entry gets past: session.umask.set (rtorrent_rc_convert) makes them 0640, and the default
-# group entry keeps the owning group out (media servers are in the master's group).
-# As the user: a link they placed there only reaches their own files
+# group entry keeps the owning group out (media servers are in the master's group). rutorrent is given it
+# as soon as its account exists, www-data's entries are removed once ruTorrent runs as rutorrent.
+# As the user, on their own files only: a link they placed there only reaches their own files
 function rtorrent_session_acl() {
+    local readers x=""
     [[ -d /home/$1/.sessions ]] || return 0
-    # shellcheck disable=SC2016 # expanded by the user's sh
-    (cd / && runuser -u "$1" -- sh -c 'setfacl -P -m u:www-data:rx,d:u:www-data:r,d:g::- "$1" &&
-        find "$1" -maxdepth 1 -type f -name "*.torrent" -exec setfacl -m u:www-data:r {} +' sh "/home/$1/.sessions")
+    readers=$(rutorrent_web_account)
+    if [[ $readers == rutorrent ]]; then
+        x=u:www-data
+    elif rutorrent_account_ok; then
+        readers+=" rutorrent"
+    fi
+    # shellcheck disable=SC2016,SC2086 # expanded by the user's sh; one argument per account
+    (cd / && runuser -u "$1" -- sh -c 'd=$1 x=$2 rc=0
+        shift 2
+        if [ -n "$x" ]; then
+            setfacl -P -x "$x,d:$x" "$d" || rc=1
+            find "$d" -maxdepth 1 -type f -user "$(id -u)" -exec setfacl -x "$x" {} + || rc=1
+        fi
+        for a in "$@"; do
+            setfacl -P -m "u:$a:rx,d:u:$a:r,d:g::-" "$d" || rc=1
+            find "$d" -maxdepth 1 -type f -user "$(id -u)" -name "*.torrent" -exec setfacl -m "u:$a:r" {} + || rc=1
+        done
+        exit $rc' sh "/home/$1/.sessions" "$x" $readers)
 }
