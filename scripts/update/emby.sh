@@ -8,8 +8,11 @@ if [[ -f $conf ]] && ! grep -q 'http_upgrade' "$conf"; then
     sed -i 's|^\(\s*\)include /etc/nginx/snippets/proxy.conf;|&\n\1proxy_set_header Upgrade $http_upgrade;\n\1proxy_set_header Connection $http_connection;|' "$conf"
     if grep -q 'http_upgrade' "$conf" && nginx -t > /dev/null 2>&1; then
         rm "$conf.bak"
-        systemctl reload nginx
-        echo_progress_done
+        if systemctl reload nginx; then
+            echo_progress_done
+        else
+            echo_warn "nginx did not reload, Emby websockets work after its next restart"
+        fi
     else
         mv "$conf.bak" "$conf"
         echo_warn "Could not add websocket headers to $conf, add 'proxy_set_header Upgrade \$http_upgrade;' and 'proxy_set_header Connection \$http_connection;' to its location manually"
