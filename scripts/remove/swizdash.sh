@@ -13,6 +13,11 @@ rm -f /etc/nginx/sites-enabled/swizdash /etc/nginx/swizdash-token.conf
 systemctl reload nginx
 rm -f /etc/sudoers.d/swizdash /usr/local/sbin/swizdash-helper /run/swizdash-helper.lock
 rm -rf /opt/swizdash /etc/swizdash /var/lib/swizdash /var/log/swizdash
+# back to the system's default, only if swizdash had changed it
+if [[ -f /etc/sysctl.d/60-swizdash-ptrace.conf ]]; then
+    rm -f /etc/sysctl.d/60-swizdash-ptrace.conf
+    sysctl -q --system > /dev/null 2>&1
+fi
 userdel swizdash > /dev/null 2>&1
 
 rm -f /install/.swizdash.lock

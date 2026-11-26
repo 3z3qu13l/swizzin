@@ -11,6 +11,7 @@ fi
 
 swizdash_download
 swizdash_token
+swizdash_ptrace
 swizdash_systemd
 if ! bash /usr/local/bin/swizzin/nginx/swizdash.sh; then
     echo_error "swizdash is upgraded but its nginx config could not be written"

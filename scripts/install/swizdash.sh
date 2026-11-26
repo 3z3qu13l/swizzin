@@ -28,6 +28,7 @@ swizdash_download
 
 echo_progress_start "Configuring swizdash"
 swizdash_token
+swizdash_ptrace
 swizdash_systemd
 echo_progress_done
 

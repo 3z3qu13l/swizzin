@@ -3,7 +3,11 @@
 # https://github.com/3z3qu13l/swizzin-dashboard
 
 swizdash_dir="/opt/swizdash"
-swizdash_release="https://github.com/3z3qu13l/swizzin-dashboard/releases/latest/download/swizdash.tar.gz"
+# The release box installs, and its SHA-256: an archive changed on GitHub afterwards is refused.
+# A new swizdash release is installed by updating both here (box update, then box upgrade swizdash).
+swizdash_version="0.1.0"
+swizdash_sha256="0cc803f2d1c195ea96084b20d37bc25e7faaec04ab543530c98c0035a0cf9890"
+swizdash_release="https://github.com/3z3qu13l/swizzin-dashboard/releases/download/v${swizdash_version}/swizdash.tar.gz"
 
 #shellcheck source=sources/functions/npm
 . /etc/swizzin/sources/functions/npm
@@ -15,7 +19,7 @@ function _swizdash_node_ok() {
     [[ -n $major && $major -ge 24 ]]
 }
 
-# Installs the latest release in $swizdash_dir, stopped: swizdash_systemd starts it again.
+# Installs the pinned release in $swizdash_dir, stopped: swizdash_systemd starts it again.
 # SWIZDASH_ARCHIVE installs a local archive instead.
 function swizdash_download() {
     local tmp new="${swizdash_dir}.new"
@@ -34,19 +38,18 @@ function swizdash_download() {
             exit 1
         }
     else
-        echo_progress_start "Downloading swizdash"
-        if ! curl -fsSL --retry 2 -o "${tmp}/swizdash.tar.gz" "$swizdash_release" >> "$log" 2>&1 ||
-            ! curl -fsSL --retry 2 -o "${tmp}/swizdash.tar.gz.sha256" "${swizdash_release}.sha256" >> "$log" 2>&1; then
+        echo_progress_start "Downloading swizdash ${swizdash_version}"
+        if ! curl -fsSL --retry 2 -o "${tmp}/swizdash.tar.gz" "$swizdash_release" >> "$log" 2>&1; then
             echo_error "Failed to download swizdash"
             rm -rf "$tmp"
             exit 1
         fi
         # a truncated or altered download must never reach root
-        (cd "$tmp" && sha256sum --quiet -c swizdash.tar.gz.sha256) >> "$log" 2>&1 || {
-            echo_error "The swizdash download does not match its checksum"
+        if ! echo "${swizdash_sha256}  ${tmp}/swizdash.tar.gz" | sha256sum --quiet -c - >> "$log" 2>&1; then
+            echo_error "The swizdash download does not match the checksum swizzin expects"
             rm -rf "$tmp"
             exit 1
-        }
+        fi
         echo_progress_done
     fi
     rm -rf "$new"
@@ -119,6 +122,20 @@ function swizdash_token() {
         umask 077
         echo "proxy_set_header X-Swizdash-Token \"$(cat /etc/swizdash/token)\";" > /etc/nginx/swizdash-token.conf
     )
+}
+
+# nginx workers hold the token in memory and run as www-data, like PHP. With ptrace_scope 0
+# (the Debian default) any www-data process could read that memory: 1 allows it only from
+# a parent process. Left alone when the admin already chose 1 or more.
+swizdash_ptrace_conf="/etc/sysctl.d/60-swizdash-ptrace.conf"
+
+function swizdash_ptrace() {
+    local current
+    current=$(sysctl -n kernel.yama.ptrace_scope 2> /dev/null) || return 0
+    if [[ $current == 0 || -f $swizdash_ptrace_conf ]]; then
+        printf '%s\n' "# set by swizdash, removed by box remove swizdash" "kernel.yama.ptrace_scope = 1" > "$swizdash_ptrace_conf"
+        sysctl -q -p "$swizdash_ptrace_conf" >> "$log" 2>&1
+    fi
 }
 
 function swizdash_systemd() {
