@@ -8,6 +8,8 @@
 #   changes/dates in source files. Any modifications to our software
 #   including (via compiler) GPL-licensed code must also be made available
 #   under the GPL along with build & install instructions.
+#shellcheck source=sources/functions/deluge
+. /etc/swizzin/sources/functions/deluge
 users=($(cut -d: -f1 < /etc/htpasswd))
 
 if [[ -n $1 ]]; then
@@ -40,21 +42,30 @@ fi
 
 for u in "${users[@]}"; do
     if [[ -f /etc/nginx/apps/${u}.dindex.conf ]]; then rm -f /etc/nginx/apps/${u}.dindex.conf; fi
+    [[ -f /home/$u/.config/deluge/web.conf ]] || continue
 
     isactive=$(systemctl is-active deluge-web@$u)
     if [[ $isactive == "active" ]]; then
         systemctl stop deluge-web@$u
     fi
 
-    sed -i 's/"interface": "0.0.0.0"/"interface": "127.0.0.1"/g' /home/$u/.config/deluge/web.conf
-    sed -i 's/"https": true/"https": false/g' /home/$u/.config/deluge/web.conf
+    # nginx proxies over http to 127.0.0.1; any other address than all interfaces is an admin's choice, kept as is
+    addr=$(deluge_web_interface "$u")
+    if [[ $addr == 0.0.0.0 || $addr == :: || $addr == 127.0.0.1 ]]; then
+        deluge_web_listen "$u" 127.0.0.1 false || echo_warn "Could not make the Deluge web interface of $u listen on 127.0.0.1 over http"
+    fi
 
     if [[ $isactive == "active" ]]; then
         systemctl start deluge-web@$u
     fi
 
     if [[ ! -f /etc/nginx/conf.d/${u}.deluge.conf ]]; then
-        DWPORT=$(grep port /home/$u/.config/deluge/web.conf | cut -d: -f2 | sed 's/ //g' | sed 's/,//g')
+        # Read as the user and only a number: the file is theirs and the value lands in nginx's config
+        DWPORT=$(cd / && runuser -u "$u" -- grep -oP '"port":\s*\K[0-9]+' "/home/$u/.config/deluge/web.conf" | head -n 1)
+        [[ $DWPORT =~ ^[0-9]+$ ]] || {
+            echo_warn "No Deluge web port found for $u"
+            continue
+        }
         cat > /etc/nginx/conf.d/${u}.deluge.conf << DUPS
 upstream $u.deluge {
   server 127.0.0.1:$DWPORT;
