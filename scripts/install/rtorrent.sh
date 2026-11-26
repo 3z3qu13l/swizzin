@@ -44,6 +44,7 @@ execute = {sh,-c,/usr/bin/php /srv/rutorrent/php/initplugins.php ${user} &}
 EOF
     rtorrent_rc_convert /home/${user}/.rtorrent.rc
     chown ${user}:${user} -R /home/${user}/.rtorrent.rc
+    _home_private "${user}" >> "$log" 2>&1
 }
 
 function _makedirs() {
