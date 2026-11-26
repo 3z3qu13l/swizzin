@@ -30,11 +30,7 @@ rutorrent_nginx_config
 rutorrent_user_config
 
 restart_php_fpm
-rutorrent_php_pool && rutorrent_nginx_php
-rutorrent_perms
-for u in $(_get_user_list); do
-    if rutorrent_user_access_needed "$u"; then rutorrent_user_access "$u"; fi
-done
+rutorrent_setup
 echo_progress_start "Reloading nginx"
 systemctl reload nginx >> $log 2>&1
 echo_progress_done
