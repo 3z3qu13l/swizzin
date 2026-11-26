@@ -104,7 +104,9 @@ _mkdir_transmission() {
 
 _mkconf_transmission() {
     echo_progress_start "Creating config for ${bold}$user"
-    cat > /home/${user}/.config/transmission-daemon/settings.json << EOF
+    # removed and written as the user: Transmission can read it under any umask, and a symlink placed there only reaches the user's own files
+    runuser -u ${user} -- rm -f /home/${user}/.config/transmission-daemon/settings.json
+    runuser -u ${user} -- tee /home/${user}/.config/transmission-daemon/settings.json > /dev/null << EOF
 {
     "alt-speed-down": 50,
     "alt-speed-enabled": false,
@@ -181,8 +183,6 @@ _mkconf_transmission() {
     "watch-dir-enabled": ${watch_dir_enabled}
 }
 EOF
-    # written by root: under a restrictive umask Transmission could not read it and would save its defaults over it
-    chown ${user}: /home/${user}/.config/transmission-daemon/settings.json
     echo_progress_done "Config created"
     if [[ ! -f /install/.nginx.lock ]]; then
         echo_info "Transmission RPC port for ${bold}${user} = ${rpc_port}"

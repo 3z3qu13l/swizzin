@@ -21,20 +21,10 @@ if [ -f /install/.transmission.lock ]; then
         [[ -f $conf ]] || continue
         active=$(systemctl is-active transmission@"$u")
         enabled=$(systemctl is-enabled transmission@"$u")
-        # Still unreadable and not yet overwritten: Transmission runs on its defaults and would save them when stopped
-        if ! runuser -u "$u" -- test -r "$conf"; then
-            echo_progress_start "Giving $u its Transmission config"
-            cp -p "$conf" "${conf}.swizzin"
-            systemctl stop transmission@"$u"
-            mv -f "${conf}.swizzin" "$conf"
-            chown "$u": "$conf"
-            if [[ $active == "active" ]]; then
-                systemctl start transmission@"$u"
-            fi
-            echo_progress_done
-        fi
+        # read as the user, never as root: the user can symlink this file or its folder anywhere.
+        # A config the user cannot read is one Transmission cannot read either: it is written again.
         # rpc_username: the key name Transmission 4.1+ can save and 5 will save by default
-        [[ -z $(jq -r '.["rpc-username"] // .rpc_username // empty' "$conf" 2> /dev/null) ]] || continue
+        [[ -z $(runuser -u "$u" -- jq -r '.["rpc-username"] // .rpc_username // empty' "$conf" 2> /dev/null) ]] || continue
         echo_progress_start "Restoring the Transmission config of $u"
         systemctl stop transmission@"$u"
         rpc_port=$(grep -oP '127\.0\.0\.1:\K[0-9]+' "/etc/nginx/conf.d/${u}.transmission.conf" 2> /dev/null) \
