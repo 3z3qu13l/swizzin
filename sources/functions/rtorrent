@@ -522,7 +522,7 @@ function rtorrent_session_acl() {
     elif rutorrent_account_ok; then
         readers+=" rutorrent"
     fi
-    # shellcheck disable=SC2016 # expanded by the user's sh
+    # shellcheck disable=SC2016,SC2086 # expanded by the user's sh; one argument per account
     (cd / && runuser -u "$1" -- sh -c 'd=$1 x=$2 rc=0
         shift 2
         if [ -n "$x" ]; then

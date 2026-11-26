@@ -189,6 +189,7 @@ function _rutorrent_perms() {
     w=$(rutorrent_web_account)
     readers=$w
     if [[ $w == rutorrent ]]; then
+        # shellcheck disable=SC2054 # one setfacl argument
         xd=(-x u:www-data,d:u:www-data)
         xf=(-x u:www-data)
         strip=1
@@ -425,6 +426,7 @@ function rutorrent_profiles_unmount() {
 function _rutorrent_profile_acl() {
     local readers=$1 owner=$2 u=$3 d=$4 acl="" dacl="" a run xd=() xf=()
     if [[ -n $5 ]]; then
+        # shellcheck disable=SC2054 # one setfacl argument
         xd=(-x u:www-data,d:u:www-data)
         xf=(-x u:www-data)
     fi
