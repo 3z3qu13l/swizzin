@@ -181,6 +181,8 @@ _mkconf_transmission() {
     "watch-dir-enabled": ${watch_dir_enabled}
 }
 EOF
+    # written by root: under a restrictive umask Transmission could not read it and would save its defaults over it
+    chown ${user}: /home/${user}/.config/transmission-daemon/settings.json
     echo_progress_done "Config created"
     if [[ ! -f /install/.nginx.lock ]]; then
         echo_info "Transmission RPC port for ${bold}${user} = ${rpc_port}"

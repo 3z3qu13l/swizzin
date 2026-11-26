@@ -21,6 +21,26 @@ if [[ -f /install/.qbittorrent.lock ]]; then
         echo_info "qBittorrent systemd services have been updated. Please restart qBittorrent services at your convenience."
     fi
     #End systemd service updates
+    # A config qBittorrent could not read (root-owned under a restrictive umask) was replaced by its
+    # defaults: WebUI on *:8080, no user, no password. Nothing to keep there, swizzin's config is written again.
+    #shellcheck source=sources/functions/utils
+    . /etc/swizzin/sources/functions/utils
+    for u in $(_get_user_list); do
+        [[ -f /home/${u}/.config/qBittorrent/qBittorrent.conf ]] || continue
+        [[ -z $(qbittorrent_webui_setting "$u" Username) && -z $(qbittorrent_webui_setting "$u" Password_PBKDF2) && -z $(qbittorrent_webui_setting "$u" Password_ha1) ]] || continue
+        echo_progress_start "Restoring the qBittorrent config of $u"
+        active=$(systemctl is-active qbittorrent@"$u")
+        systemctl stop qbittorrent@"$u"
+        qbittorrent_user_config "$u"
+        if [[ -f /install/.nginx.lock ]]; then
+            bash /etc/swizzin/scripts/nginx/qbittorrent.sh
+            systemctl reload nginx
+        fi
+        if [[ $active == "active" ]]; then
+            systemctl start qbittorrent@"$u"
+        fi
+        echo_progress_done
+    done
     #Check for proxy_cookie_path in nginx to prevent writing cookies to /
     if [[ -f /install/.nginx.lock ]]; then
         if ! grep -q proxy_cookie_path /etc/nginx/apps/qbittorrent.conf; then

@@ -12,4 +12,17 @@ if [ -f /install/.transmission.lock ]; then
         done
         echo_progress_done "Logs moved for all users"
     fi
+
+    # A settings.json Transmission could not read (root-owned under a restrictive umask) was replaced by
+    # its defaults: rpc-port 9091, no rpc user. swizzin's config is written again, on the port nginx expects.
+    readarray -t users < <(_get_user_list)
+    for u in "${users[@]}"; do
+        conf="/home/${u}/.config/transmission-daemon/settings.json"
+        [[ -f $conf ]] || continue
+        [[ -z $(jq -r '.["rpc-username"] // empty' "$conf" 2> /dev/null) ]] || continue
+        echo_info "Restoring the Transmission config of $u"
+        systemctl stop transmission@"$u"
+        rpc_port=$(grep -oP '127\.0\.0\.1:\K[0-9]+' "/etc/nginx/conf.d/${u}.transmission.conf" 2> /dev/null) \
+            bash /usr/local/bin/swizzin/install/transmission.sh "$u"
+    done
 fi
