@@ -389,6 +389,8 @@ function _adduser() {
     . /etc/swizzin/sources/functions/utils
 
     if [[ -n $SETUP_USER ]]; then
+        # a new server never had www-data group memberships to replace with ACLs (update/20-www-data-acl.sh)
+        touch /install/.www-data-acl.done
         usermod -a -G sudo "$user"
         rm /root/"$user".info
         echo "$user:$pass" > /root/.master.info
