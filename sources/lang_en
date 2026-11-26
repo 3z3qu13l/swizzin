@@ -61,6 +61,7 @@ $L['SICKGEAR'] = 'SickGear, like others in the Sick* lineage, provides managemen
 $L['SICKRAGE'] = 'Video File Manager for TV Shows, It watches for new episodes of your favorite shows and when they are posted it does its magic.';
 $L['SONARR'] = 'Sonarr is a tv series management tool which will work with both torrents and usenet.';
 $L['SUBSONIC'] = 'Subsonic is a web-based media server. It is written in Java, so it can run on any operating system with Java support. Subsonic supports streaming to multiple clients simultaneously, and supports any streamable media (including MP3, AAC, and Ogg).';
+$L['SWIZDASH'] = 'A modern web dashboard to start, stop, install and monitor your apps and your server.';
 $L['SYNCTHING'] = 'Open Source Continuous File Synchronization with BitTorrent.';
 $L['TAUTULLI'] = 'A python based web application for monitoring, analytics and notifications for Plex Media Server.';
 $L['TRANSMISSION'] = 'A simple, lightweight and stable torrent client with a built-in web UI and an RPC interface.';
