@@ -1,8 +1,11 @@
 #!/bin/bash
 # swizdash removal
 
-# an install or removal started from the dashboard would keep running
-systemctl stop 'swizdash-job-*' > /dev/null 2>&1
+# stopping an install started from the dashboard would leave that app half installed
+if systemctl list-units --plain --no-legend --state=activating,active 'swizdash-job-*' | grep -q .; then
+    echo_error "swizdash is installing or removing an app, try again once it is done"
+    exit 1
+fi
 systemctl disable -q --now swizdash swizdash.socket >> "$log" 2>&1
 rm -f /etc/systemd/system/swizdash.service /etc/systemd/system/swizdash.socket
 systemctl daemon-reload

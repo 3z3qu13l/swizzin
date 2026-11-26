@@ -15,9 +15,10 @@ function _swizdash_node_ok() {
     [[ -n $major && $major -ge 24 ]]
 }
 
-# Installs the latest release in $swizdash_dir. SWIZDASH_ARCHIVE installs a local archive instead.
+# Installs the latest release in $swizdash_dir, stopped: swizdash_systemd starts it again.
+# SWIZDASH_ARCHIVE installs a local archive instead.
 function swizdash_download() {
-    local tmp new="${swizdash_dir}.new" active
+    local tmp new="${swizdash_dir}.new"
     if ! _swizdash_node_ok; then
         npm_install
     fi
@@ -34,12 +35,12 @@ function swizdash_download() {
         }
     else
         echo_progress_start "Downloading swizdash"
-        curl -fsSL --retry 2 -o "${tmp}/swizdash.tar.gz" "$swizdash_release" >> "$log" 2>&1 &&
-            curl -fsSL --retry 2 -o "${tmp}/swizdash.tar.gz.sha256" "${swizdash_release}.sha256" >> "$log" 2>&1 || {
+        if ! curl -fsSL --retry 2 -o "${tmp}/swizdash.tar.gz" "$swizdash_release" >> "$log" 2>&1 ||
+            ! curl -fsSL --retry 2 -o "${tmp}/swizdash.tar.gz.sha256" "${swizdash_release}.sha256" >> "$log" 2>&1; then
             echo_error "Failed to download swizdash"
             rm -rf "$tmp"
             exit 1
-        }
+        fi
         # a truncated or altered download must never reach root
         (cd "$tmp" && sha256sum --quiet -c swizdash.tar.gz.sha256) >> "$log" 2>&1 || {
             echo_error "The swizdash download does not match its checksum"
@@ -60,20 +61,22 @@ function swizdash_download() {
     chown -R root:root "$new"
     chmod -R u=rwX,go=rX "$new"
 
-    active=$(systemctl is-active swizdash 2> /dev/null)
-    systemctl stop swizdash > /dev/null 2>&1
+    # the socket would start the service again on the next request, halfway through the swap
+    systemctl stop swizdash.socket swizdash > /dev/null 2>&1
     rm -rf "${swizdash_dir}.old"
-    [[ -d $swizdash_dir ]] && mv "$swizdash_dir" "${swizdash_dir}.old"
+    if [[ -d $swizdash_dir ]] && ! mv "$swizdash_dir" "${swizdash_dir}.old"; then
+        rm -rf "$new"
+        echo_error "Could not move the current swizdash aside"
+        exit 1
+    fi
     if ! mv "$new" "$swizdash_dir"; then
-        # puts the running version back
+        # puts the previous version back
         [[ -d ${swizdash_dir}.old ]] && mv "${swizdash_dir}.old" "$swizdash_dir"
-        [[ $active == active ]] && systemctl start swizdash
         echo_error "Could not install swizdash in ${swizdash_dir}"
         exit 1
     fi
     rm -rf "${swizdash_dir}.old"
     swizdash_helper
-    [[ $active == active ]] && systemctl start swizdash
     return 0
 }
 
@@ -163,7 +166,7 @@ PrivateTmp=yes
 WantedBy=multi-user.target
 SERVICE
     # an older swizdash.service owned /run/swizdash: stop it before the socket takes the folder
-    systemctl stop swizdash > /dev/null 2>&1
+    systemctl stop swizdash.socket swizdash > /dev/null 2>&1
     systemctl daemon-reload
     systemctl enable -q swizdash.socket swizdash 2>&1 | tee -a "$log"
     systemctl restart swizdash.socket
