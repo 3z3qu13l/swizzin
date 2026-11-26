@@ -54,6 +54,7 @@ function _makedirs() {
     chown -R ${user}:${user} /home/${user}/{torrents,.sessions,rwatch} 2>> $log
     _www_acl_served "${user}" torrents/rtorrent >> $log 2>&1 || echo_warn "Could not let nginx read /home/${user}/torrents/rtorrent"
     rtorrent_socket_acl "${user}"
+    rtorrent_session_acl "${user}" >> "$log" 2>&1 || echo_warn "Could not let ruTorrent read /home/${user}/.sessions, Get .torrent will fail"
 }
 
 _systemd() {

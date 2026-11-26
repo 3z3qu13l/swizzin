@@ -1,5 +1,6 @@
 #!/bin/bash
 # rtorrent upgrade/downgrade/reinstall script
+# shellcheck disable=SC2154 # log is exported by globals.sh
 # Author: liara
 
 if [[ ! -f /install/.rtorrent.lock ]]; then
@@ -66,6 +67,7 @@ fi
 for u in "${users[@]}"; do
     if grep -q localhost /home/$u/.rtorrent.rc; then sed -i 's/localhost/127.0.0.1/g' /home/$u/.rtorrent.rc; fi
     rtorrent_rc_convert /home/$u/.rtorrent.rc
+    rtorrent_session_acl "$u" >> "$log" 2>&1
     systemctl try-restart rtorrent@${u}
 done
 

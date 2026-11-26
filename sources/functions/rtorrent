@@ -131,6 +131,12 @@ function rtorrent_rc_convert() {
     else
         sed -i -E 's/\bschedule\.remove\b/schedule_remove2/g' "$rc"
     fi
+    # from 0.16.25 the session files are written 0600, a mask no ACL entry gets past (rtorrent_session_acl)
+    if rtorrent_installed_atleast 0.16.26; then
+        grep -qE '^\s*session\.umask\.set\b' "$rc" || sed -i -E '/^\s*session(\.path\.set)?\s*=/a session.umask.set = 0027' "$rc"
+    else
+        sed -i -E '/^\s*session\.umask\.set\b/d' "$rc"
+    fi
 }
 
 function configure_rtorrent() {
@@ -473,4 +479,16 @@ function rtorrent_socket_acl() {
     if [[ -S /run/${u}/.rtorrent.sock ]]; then
         (cd / && runuser -u "$u" -- setfacl -P -m u:www-data:rw /run/"${u}"/.rtorrent.sock) >> "$log" 2>&1
     fi
+}
+
+# ruTorrent (Get .torrent, edit, retrackers) reads <hash>.torrent in the session folder as www-data: a named
+# entry and its default, rTorrent writes each file anew so it inherits it. From 0.16.25 they are written
+# 0600, which no entry gets past: session.umask.set (rtorrent_rc_convert) makes them 0640, and the default
+# group entry keeps the owning group out (media servers are in the master's group).
+# As the user: a link they placed there only reaches their own files
+function rtorrent_session_acl() {
+    [[ -d /home/$1/.sessions ]] || return 0
+    # shellcheck disable=SC2016 # expanded by the user's sh
+    (cd / && runuser -u "$1" -- sh -c 'setfacl -P -m u:www-data:rx,d:u:www-data:r,d:g::- "$1" &&
+        find "$1" -maxdepth 1 -type f -name "*.torrent" -exec setfacl -m u:www-data:r {} +' sh "/home/$1/.sessions")
 }
