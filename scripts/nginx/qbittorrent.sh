@@ -10,6 +10,7 @@ if [[ ! -f /etc/nginx/apps/qbtindex.conf ]]; then
     cat > /etc/nginx/apps/qbtindex.conf << DIN
 location /qbittorrent.downloads {
     alias /home/\$remote_user/torrents/qbittorrent;
+    disable_symlinks if_not_owner;
     include /etc/nginx/snippets/fancyindex.conf;
     auth_basic "What's the password?";
     auth_basic_user_file /etc/htpasswd;
