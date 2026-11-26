@@ -133,7 +133,7 @@ function rtorrent_rc_convert() {
     fi
     # from 0.16.25 the session files are written 0600, a mask no ACL entry gets past (rtorrent_session_acl)
     if rtorrent_installed_atleast 0.16.26; then
-        grep -qE '^\s*session\.umask\.set\b' "$rc" || sed -i -E '/^\s*session\.path\.set\b/a session.umask.set = 0027' "$rc"
+        grep -qE '^\s*session\.umask\.set\b' "$rc" || sed -i -E '/^\s*session(\.path\.set)?\s*=/a session.umask.set = 0027' "$rc"
     else
         sed -i -E '/^\s*session\.umask\.set\b/d' "$rc"
     fi
