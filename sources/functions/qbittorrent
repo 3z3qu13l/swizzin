@@ -533,7 +533,7 @@ function build_libtorrent_qbittorrent() {
     VERSION=$(grep -oP "VERSION\ = \K\d\.\d\.\d+" Jamfile)
     case $build_type in
         cmake)
-            if [[ $(get_candidate_version cmake) < 3.16 ]]; then
+            if dpkg --compare-versions "$(get_candidate_version cmake)" lt 3.16; then
                 install_cmake_swizzin
             else
                 apt_install cmake ninja-build
