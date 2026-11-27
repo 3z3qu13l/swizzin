@@ -525,6 +525,13 @@ function rutorrent_php_pool() {
         return 1
     fi
     rutorrent_account || return 1
+    # before the pool that loads it: PHP stops on a missing one
+    if [[ ! -f $RUTORRENT_PHP_PREPEND || $(< "$RUTORRENT_PHP_PREPEND") != "$(_rutorrent_php_prepend)" ]]; then
+        # renamed into place: a request never reads it half written
+        _rutorrent_php_prepend > "$RUTORRENT_PHP_PREPEND.new" && chmod 0644 "$RUTORRENT_PHP_PREPEND.new" &&
+            mv -f "$RUTORRENT_PHP_PREPEND.new" "$RUTORRENT_PHP_PREPEND"
+        restart=1
+    fi
     if [[ ! -f $f || $(< "$f") != "$(_rutorrent_php_pool_conf)" || ! -f $ini || $(< "$ini") != "$(_rutorrent_php_ini)" ]]; then
         [[ -f $f ]] && keep_f=$(< "$f")
         [[ -f $ini ]] && keep_ini=$(< "$ini")
@@ -576,6 +583,59 @@ pm.process_idle_timeout = 60s
 env[PATH] = /usr/local/bin:/usr/bin:/bin
 ; a .user.ini in a folder ruTorrent's PHP can write would change its settings
 php_admin_value[user_ini.filename] = ""
+; each request reads the files of its user only
+php_admin_value[auto_prepend_file] = /etc/php/swizzin-rutorrent-prepend.php
+; ruTorrent checks its temp folder's parent: /tmp/. has /tmp, where / is outside open_basedir
+php_admin_value[upload_tmp_dir] = /tmp/.
+; open_basedir checks paths through this cache, set only by ini_set: a folder seen once, then replaced by
+; a link, would pass as the folder
+php_admin_value[realpath_cache_size] = 0
+EOF
+}
+
+RUTORRENT_PHP_PREPEND=/etc/php/swizzin-rutorrent-prepend.php
+
+# ruTorrent's account reads every user's downloads, and its PHP follows links: a link a user placed in their
+# own folders, to another user's file, let them download it (file manager, data, share link, media player...).
+# Each request is confined by open_basedir, which PHP checks on the path with its links resolved, to its user's
+# home and their downloads folder (wherever it was moved, while it is theirs), ruTorrent and what its code
+# reads. open_basedir can only be narrowed: the public share link (filemanager-share) calls
+# swizzin_rutorrent_confine itself once it knows its user. A defence in depth, not a wall: a link swapped in
+# between PHP's check and its open() still wins a race, and programs ruTorrent's account runs itself are not
+# confined (rTorrent runs the plugins' tasks as the user). Only a pool per user would be a wall
+function _rutorrent_php_prepend() {
+    cat << 'EOF'
+<?php
+// written by swizzin, see _rutorrent_php_prepend in /etc/swizzin/sources/functions/rutorrent
+function swizzin_rutorrent_confine($user)
+{
+    // no trailing slash: that file only. /proc/self would give the worker's memory, other users' requests
+    $dirs = ['/srv/rutorrent/', '/tmp/', '/var/tmp/', '/usr/', '/bin/', '/proc/loadavg', '/var/log/rutorrent/',
+        '/install/.quota.lock', '/install/.rutorrent.share.key'];
+    $home = '/home/' . $user;
+    $st = (is_string($user) && preg_match('/^[a-z0-9_-]+$/', $user)) ? @stat($home) : false;
+    if ($st !== false && $st['uid'] > 0) {
+        $dirs[] = $home . '/';
+        foreach (['/var/run/', '/run/'] as $run) {
+            $dirs[] = $run . $user . '/';
+        }
+        $dl = @realpath($home . '/torrents/rtorrent');
+        if ($dl !== false && @fileowner($dl) === $st['uid']) {
+            $dirs[] = rtrim($dl, '/') . '/';
+        }
+    }
+    if (ini_set('open_basedir', implode(':', $dirs)) === false) {
+        http_response_code(500);
+        exit('open_basedir');
+    }
+}
+
+// as ruTorrent reads its user (php/util.php, User::getLoginInstance), nginx having checked the login
+if (@realpath($_SERVER['SCRIPT_FILENAME'] ?? '') !== '/srv/rutorrent/plugins/filemanager-share/share.php') {
+    $user = $_SERVER['REMOTE_USER'] ?? $_SERVER['PHP_AUTH_USER'] ?? $_SERVER['REDIRECT_REMOTE_USER'] ?? '';
+    swizzin_rutorrent_confine(preg_replace('/[^a-z0-9\-_]/', '_', strtolower((string) $user)));
+    unset($user);
+}
 EOF
 }
 
@@ -592,6 +652,7 @@ function rutorrent_php_needed() {
     v=$(php_service_version)
     [[ ! -f /etc/php/$v/fpm/pool.d/rutorrent.conf || $(< "/etc/php/$v/fpm/pool.d/rutorrent.conf") != "$(_rutorrent_php_pool_conf)" ]] ||
         [[ ! -f /etc/php/$v/fpm/conf.d/99-swizzin-rutorrent.ini || $(< "/etc/php/$v/fpm/conf.d/99-swizzin-rutorrent.ini") != "$(_rutorrent_php_ini)" ]] ||
+        [[ ! -f $RUTORRENT_PHP_PREPEND || $(< "$RUTORRENT_PHP_PREPEND") != "$(_rutorrent_php_prepend)" ]] ||
         [[ -n $(find /etc/php -path "/etc/php/$v" -prune -o \( -path '*/fpm/pool.d/rutorrent.conf' -o -path '*/fpm/conf.d/99-swizzin-rutorrent.ini' \) -print -quit 2> /dev/null) ]] ||
         [[ ! -S /run/php-fpm-rutorrent.sock ]]
 }
@@ -767,6 +828,8 @@ function rutorrent_remove_account() {
     rm -f /etc/php/*/fpm/pool.d/rutorrent.conf /etc/php/*/fpm/conf.d/99-swizzin-rutorrent.ini /etc/nginx/apps/rutorrent-public.conf
     readarray -t units < <(systemctl list-units --all --no-legend --plain 'php*-fpm.service' 2> /dev/null | awk '{print $1}')
     ((${#units[@]})) && systemctl try-restart "${units[@]}" >> "$log" 2>&1
+    # once no pool loads it
+    rm -f "$RUTORRENT_PHP_PREPEND"
     rutorrent_account_ok || return 0
     for u in $(_get_user_list); do
         id -u "$u" > /dev/null 2>&1 || continue
@@ -780,6 +843,7 @@ function rutorrent_remove_account() {
                     */.sessions) runuser -u "$u" -- find "$r" -maxdepth 1 -type f -user "$u" -exec setfacl -x u:rutorrent {} + ;;
                     */torrents/rtorrent) runuser -u "$u" -- find "$r" -xdev ! -type l -user "$u" \( -type d -exec setfacl -P -x u:rutorrent,d:u:rutorrent {} + \
                         -o -exec setfacl -P -x u:rutorrent {} + \) ;;
+                    *) ;;
                 esac
             done
             [[ -S /run/$u/.rtorrent.sock ]] && runuser -u "$u" -- setfacl -P -x u:rutorrent "/run/$u/.rtorrent.sock"
