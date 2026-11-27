@@ -30,6 +30,8 @@ require_ssl_reuse=NO
 rsa_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem
 rsa_private_key_file=/etc/ssl/private/ssl-cert-snakeoil.key
 ssl_enable=YES
+force_local_logins_ssl=YES
+force_local_data_ssl=YES
 pam_service_name=vsftpd
 secure_chroot_dir=/var/run/vsftpd/empty
 
