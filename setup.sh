@@ -232,7 +232,7 @@ function _intro() {
 
 function _adduser() {
     echo_info "Creating master user"
-    export SETUP_USER=true                                                            # This sets whiptail in box adduser
+    export SETUP_USER=true # This sets whiptail in box adduser
     UNATTEND="${unattend}" bash /etc/swizzin/scripts/box adduser "$user" "$pass" || {
         echo_error "Installation aborted!"
         exit 1

@@ -395,7 +395,10 @@ function _media_acl() {
     (
         cd / || exit 1
         p=$r
-        while p=${p%/*}; [[ -n $p ]]; do
+        while
+            p=${p%/*}
+            [[ -n $p ]]
+        do
             if [[ $(stat -c %U "$p") == "$o" ]]; then runuser -u "$o" -- setfacl -P -m "u:$a:x" "$p"; fi
         done
         # the owner keeps what the server creates there (Calibre-web adds books)
