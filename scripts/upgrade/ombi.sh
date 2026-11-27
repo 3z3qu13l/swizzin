@@ -4,11 +4,22 @@ if [[ ! -f /install/.ombi.lock ]]; then
     exit 1
 fi
 
-if ! grep -q apt.ombi.app /etc/apt/sources.list.d/ombi.list; then
+#shellcheck source=sources/functions/ombi
+. /etc/swizzin/sources/functions/ombi
+
+if ombi_from_github; then
+    if ombi_from_apt; then
+        ombi_migrate_to_github || exit 1
+    else
+        ombi_github_upgrade || exit 1
+    fi
+    echo_success "Ombi upgraded"
+    exit 0
+fi
+
+if ! grep -qs apt.ombi.app /etc/apt/sources.list.d/ombi.list; then
 
     echo_info "Upgrading ombi apt sources"
-    #shellcheck source=sources/functions/ombi
-    . /etc/swizzin/sources/functions/ombi
     ombi_apt_source || exit 1
 
     echo_progress_start "Backing up old Ombi config and database"
@@ -27,5 +38,8 @@ if ! grep -q apt.ombi.app /etc/apt/sources.list.d/ombi.list; then
     fi
     echo_success "Ombi upgraded"
 else
-    echo_info "Please upgrade ombi through apt"
+    apt_update
+    ombi_index_link
+    apt_install --only-upgrade ombi
+    echo_success "Ombi upgraded"
 fi

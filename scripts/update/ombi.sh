@@ -34,7 +34,7 @@ CONF
     fi
 
     #Switching from roxedus' sources to ombi official ones
-    if grep -q roxedus.github.io /etc/apt/sources.list.d/ombi.list; then
+    if grep -qs roxedus.github.io /etc/apt/sources.list.d/ombi.list; then
         echo_progress_start "Upgrading ombi apt sources to official ones"
         #shellcheck source=sources/functions/ombi
         . /etc/swizzin/sources/functions/ombi
@@ -45,7 +45,7 @@ CONF
     fi
 
     #nagging v3 users to upgrade
-    if grep -q turd /etc/apt/sources.list.d/ombi.list; then
+    if grep -qs turd /etc/apt/sources.list.d/ombi.list; then
         echo_warn "Your ombi install (v3) has reached EOL. Please upgrade it with \`box upgrade ombi\` to v4"
     fi
 

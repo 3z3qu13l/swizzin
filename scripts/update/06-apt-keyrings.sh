@@ -14,7 +14,7 @@ while read -r app list keyring url lock <&3; do
     src=$list
     # A source this script disabled earlier is retried on every box update; its own suffix leaves sources an admin disabled alone
     [[ -f $src ]] || src=$list.swizzin.disabled
-    # A list without signed-by (ombi on trixie) does not use the keyring
+    # A list without signed-by does not use the keyring
     grep -qs "signed-by=$keyring" "$src" || continue
     if [[ $src == "$list" ]] && gpg --show-keys "$keyring" > /dev/null 2>&1; then continue; fi
     echo_progress_start "Repairing the $app apt signing key"

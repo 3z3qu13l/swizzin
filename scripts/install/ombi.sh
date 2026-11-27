@@ -2,16 +2,17 @@
 # Ombi installer
 # Swizzin gplv3 and all that
 
+#shellcheck source=sources/functions/ombi
+. /etc/swizzin/sources/functions/ombi
+
 function _sources() {
     echo_progress_start "Installing ombi apt sources"
-    #shellcheck source=sources/functions/ombi
-    . /etc/swizzin/sources/functions/ombi
     ombi_apt_source || exit 1
     echo_progress_done "Sources installed"
     apt_update
 }
 
-function _install() {
+function _dependencies() {
     echo_progress_start "Installing Ombi runtime dependencies"
     icu_pkg="$(apt-cache search '^libicu[0-9]+$' | awk '{print $1}' | sort -Vr | sed -n '1p')"
     if [[ -n "${icu_pkg}" ]]; then
@@ -21,9 +22,16 @@ function _install() {
         apt_install libicu-dev
     fi
     echo_progress_done "Dependencies installed"
+}
 
-    ombi_index_link
-    apt_install ombi
+function _install() {
+    if ombi_from_github; then
+        ombi_github_upgrade || exit 1
+    else
+        _sources
+        ombi_index_link
+        apt_install ombi
+    fi
 
     mkdir -p /etc/systemd/system/ombi.service.d
     cat > /etc/systemd/system/ombi.service.d/override.conf << CONF
@@ -47,7 +55,7 @@ function _nginx() {
 
 }
 
-_sources
+_dependencies
 _install
 _nginx
 touch /install/.ombi.lock
