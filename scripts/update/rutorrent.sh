@@ -80,7 +80,32 @@ if [ -f /install/.rutorrent.lock ]; then
             rm -f "$deny" "$bak"
             echo_progress_done
         fi
+        if rutorrent_nginx_media_needed; then
+            echo_progress_start "Letting the file manager's media plugin play files"
+            rutorrent_nginx_media && reloadnginx=1
+            echo_progress_done
+        fi
     fi
+
+    # rtx's share plugin pinned until 2026 failed with ruTorrent 5.3, and its media plugin had no player
+    fmplugs=0
+    if rutorrent_fm_share_needed; then
+        echo_progress_start "Installing swizzin's corrected file manager share plugin"
+        rutorrent_fm_share_install
+        fmplugs=1
+        echo_progress_done
+    elif [[ -d /srv/rutorrent/plugins/filemanager-share ]] && _rutorrent_v5; then
+        rutorrent_fm_share_link
+    fi
+    if rutorrent_fm_media_needed; then
+        echo_progress_start "Updating the file manager media plugin"
+        rutorrent_fm_media_install
+        fmplugs=1
+        echo_progress_done
+    fi
+    rm -f /srv/fancyindex/stream.php
+    # the opcache would keep serving the old files for minutes
+    if [[ $fmplugs == 1 ]]; then /usr/local/bin/swizzin/php-fpm-cli -r 'opcache_reset();' >> "$log" 2>&1; fi
 
     if [[ -f /install/.flood.lock ]]; then
         users=($(cut -d: -f1 < /etc/htpasswd))

@@ -14,7 +14,7 @@ rutorrent_profiles_unmount || {
     echo_error "/srv/rutorrent/share/users is still mounted, ruTorrent was not removed"
     exit 1
 }
-rm -f /install/.rutorrent.nosymfollow.failed /install/.rutorrent.nginx-deny.failed /install/.rutorrent.nginx-php.failed /install/.rutorrent.tag /install/.rutorrent.account.foreign
+rm -f /install/.rutorrent.nosymfollow.failed /install/.rutorrent.nginx-deny.failed /install/.rutorrent.nginx-php.failed /install/.rutorrent.tag /install/.rutorrent.account.foreign /install/.rutorrent.nginx-media.failed /install/.rutorrent.share.key
 rm -rf /etc/nginx/apps/rutorrent.conf
 systemctl reload nginx
 rutorrent_remove_account
