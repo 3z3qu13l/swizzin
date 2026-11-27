@@ -7,16 +7,17 @@
 . /etc/swizzin/sources/functions/kavita
 
 user=$(_get_master_username)
-port=5000
+port=$(port 10001 32001)
 
 kavita_download_latest
 
 echo_progress_start "Configuring Kavita"
-# the token key signs the logins: one per server
+# the token key signs the logins: one per server, kept off the command lines.
+# On 127.0.0.1 until the master is its admin.
 (
     umask 077
-    jq -n --arg key "$(openssl rand -hex 64)" --argjson port "$port" \
-        '{TokenKey: $key, Port: $port, IpAddresses: "", BaseUrl: "/", Cache: 75}' > "$kavita_dir/config/appsettings.json"
+    openssl rand -hex 64 | jq -R --argjson port "$port" \
+        '{TokenKey: ., Port: $port, IpAddresses: "127.0.0.1", BaseUrl: "/", Cache: 75}' > "$kavita_settings"
 )
 chown -R "$user:" "$kavita_dir"
 

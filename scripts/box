@@ -560,9 +560,12 @@ function _chpasswd() {
     mkdir -p /etc/htpasswd.d/
     (umask 077 && htpasswd -i -c /etc/htpasswd.d/htpasswd."${user}" "$user" <<< "$pass" >> $log 2>&1)
     _htpasswd_perms /etc/htpasswd /etc/htpasswd.d/htpasswd."${user}"
-    for app in autobrr shinkro deluge filebrowser filebrowserquantum lounge netronome organizr qbittorrent qui transmission; do
+    for app in autobrr shinkro deluge filebrowser filebrowserquantum kavita lounge netronome organizr qbittorrent qui transmission; do
         if [[ -f /install/.${app}.lock ]]; then
             case $app in
+                kavita)
+                    [[ $user == "$master" ]] && echo_warn "Change the Kavita password in Kavita's settings too"
+                    ;;
                 filebrowserquantum)
                     # only the master has an account; the server holds its database
                     if [[ $user == "$master" ]]; then

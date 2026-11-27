@@ -6,23 +6,19 @@
 #shellcheck source=sources/functions/kavita
 . /etc/swizzin/sources/functions/kavita
 
-settings="$kavita_dir/config/appsettings.json"
-port=$(jq -r '.Port' "$settings")
-
-_rewrite_json() {
-    local tmp
-    tmp=$(mktemp "$settings.XXXXXX")
-    jq '.IpAddresses = "127.0.0.1" | .BaseUrl = "/kavita/"' "$settings" > "$tmp" &&
-        chown --reference="$settings" "$tmp" && chmod 600 "$tmp" && mv "$tmp" "$settings"
-}
+port=$(jq -r '.Port' "$kavita_settings")
 
 if [[ -f /install/.kavita.lock ]]; then
     systemctl stop kavita
-    _rewrite_json
+    _kavita_set '.IpAddresses = "127.0.0.1" | .BaseUrl = "/kavita/"'
     systemctl start kavita
 else
-    _rewrite_json
+    _kavita_set '.IpAddresses = "127.0.0.1" | .BaseUrl = "/kavita/"'
 fi
+
+# nginx's password stays in front until Kavita has an admin (kavita_create_admin)
+open=
+[[ -f $kavita_dir/config/.swizzin-open ]] && open="auth_basic off;"
 
 cat > /etc/nginx/apps/kavita.conf <<- NGX
 	location /kavita/ {
@@ -36,6 +32,6 @@ cat > /etc/nginx/apps/kavita.conf <<- NGX
 	    proxy_set_header Connection \$http_connection;
 	    proxy_buffering off;
 	    client_max_body_size 0;
-	    auth_basic off;
+	    ${open}
 	}
 NGX

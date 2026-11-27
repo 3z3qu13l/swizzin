@@ -13,6 +13,8 @@ confdir="/home/${user}/.config/filebrowserquantum"
 fbq_download_latest
 
 echo_progress_start "Configuring FileBrowser Quantum"
+# a ~/.config made here by root would lock the master out of it
+[[ -d /home/${user}/.config ]] || install -d -o "$user" -g "$user" "/home/${user}/.config"
 mkdir -p "$confdir"
 cat > "$confdir/config.yaml" <<- YAML
 	http:

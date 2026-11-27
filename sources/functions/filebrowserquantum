@@ -45,6 +45,11 @@ function fbq_download_latest() {
 # The server holds its database: stop it first.
 function fbq_set_password() {
     local user=$1 pass=$2
+    # the CLI trims what it reads: that account would never log in
+    if [[ $pass != "${pass#[[:space:]]}" || $pass != "${pass%[[:space:]]}" ]]; then
+        echo "FileBrowser Quantum refuses a password that starts or ends with a space" >> "$log"
+        return 1
+    fi
     # the CLI creates the database on its first run, with an admin: given this password, it generates none
     printf '%s' "$pass" | FILEBROWSER_ADMIN_PASSWORD="$pass" runuser -u "$user" -- "$fbq_bin" -c "$(_fbq_config)" user set "$user" -a --password >> "$log" 2>&1
 }

@@ -12,4 +12,6 @@ if [[ ! -f /install/.kavita.lock ]]; then
 fi
 
 kavita_download_latest
+# an install that could not make the master its admin left Kavita closed: retried here
+kavita_create_admin
 echo_success "Kavita upgraded"
