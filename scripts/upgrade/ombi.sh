@@ -8,7 +8,7 @@ fi
 . /etc/swizzin/sources/functions/ombi
 
 if ombi_from_github; then
-    if dpkg -s ombi > /dev/null 2>&1; then
+    if ombi_from_apt; then
         ombi_migrate_to_github || exit 1
     else
         ombi_github_upgrade || exit 1

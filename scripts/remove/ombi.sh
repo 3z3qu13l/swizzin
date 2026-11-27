@@ -13,7 +13,7 @@ rm -f /etc/apt/preferences.d/ombi
 
 # installed from its GitHub release (Debian 13 and later), not from apt
 github=
-dpkg -s ombi > /dev/null 2>&1 || github=1
+ombi_from_apt || github=1
 
 if ask "Would you like to purge the configuration?" Y; then
     [[ -z $github ]] && apt_remove ombi --purge

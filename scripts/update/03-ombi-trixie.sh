@@ -5,7 +5,7 @@
 #shellcheck source=sources/functions/ombi
 . /etc/swizzin/sources/functions/ombi
 ombi_from_github || exit 0
-dpkg -s ombi > /dev/null 2>&1 || exit 0
+ombi_from_apt || exit 0
 echo_info "Moving Ombi from its apt repository to its GitHub release"
 if ! ombi_migrate_to_github; then
     echo_warn "Ombi stays on its apt package for now, run box update again later"
