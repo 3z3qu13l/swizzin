@@ -26,7 +26,6 @@ function _dependencies() {
 
 function _install() {
     if ombi_from_github; then
-        ombi_github_service
         ombi_github_upgrade || exit 1
     else
         _sources

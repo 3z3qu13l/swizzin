@@ -17,8 +17,6 @@ ombi_from_apt || github=1
 
 if ask "Would you like to purge the configuration?" Y; then
     [[ -z $github ]] && apt_remove ombi --purge
-    # the config files the apt package left when Ombi moved to GitHub
-    [[ -n $github ]] && dpkg-query -W ombi > /dev/null 2>&1 && dpkg -P ombi >> "$log" 2>&1
     if [[ -d /opt/ombi ]]; then
         rm -rf /opt/ombi
         rm -rf /etc/ombi

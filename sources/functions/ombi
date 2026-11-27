@@ -39,6 +39,8 @@ function ombi_github_service() {
         mkdir -p /etc/Ombi
         chown ombi:nogroup /etc/Ombi
     fi
+    # its databases hold the API keys of Plex and the *arr apps
+    chmod 750 /etc/Ombi
     # not /etc/systemd/system/ombi.service: update/ombi.sh deletes that one
     mkdir -p /usr/local/lib/systemd/system
     cat > /usr/local/lib/systemd/system/ombi.service << UNIT
@@ -64,6 +66,11 @@ UNIT
     systemctl daemon-reload
 }
 
+# Apt's sources for Ombi, useless where it cannot verify them
+function ombi_drop_apt_source() {
+    rm -f /etc/apt/sources.list.d/ombi.list /etc/apt/preferences.d/ombi /usr/share/keyrings/ombi-archive-keyring.gpg
+}
+
 # Downloads and unpacks the latest release in $ombi_tmp/new, next to /opt/Ombi
 function _ombi_fetch() {
     local arch version
@@ -84,8 +91,10 @@ function _ombi_fetch() {
     echo_progress_start "Downloading Ombi ${version}"
     ombi_tmp=$(mktemp -d /opt/Ombi.XXXXXX)
     mkdir "$ombi_tmp/new"
+    # Ombi writes the base URL into its index.html when it starts: without it Ombi would not start
     if ! curl -fsSL "https://github.com/Ombi-app/Ombi/releases/download/${version}/linux-${arch}.tar.gz" -o "$ombi_tmp/ombi.tar.gz" >> "$log" 2>&1 ||
-        ! tar xzf "$ombi_tmp/ombi.tar.gz" -C "$ombi_tmp/new" >> "$log" 2>&1 || [[ ! -x $ombi_tmp/new/Ombi ]]; then
+        ! tar xzf "$ombi_tmp/ombi.tar.gz" -C "$ombi_tmp/new" >> "$log" 2>&1 || [[ ! -x $ombi_tmp/new/Ombi ]] ||
+        [[ ! -f $ombi_tmp/new/ClientApp/dist/browser/index.html ]]; then
         rm -rf "$ombi_tmp"
         echo_error "Could not download Ombi"
         return 1
@@ -95,8 +104,6 @@ function _ombi_fetch() {
     echo "${version#v}" > "$ombi_tmp/new/.swizzin-version"
     chown -R root: "$ombi_tmp/new"
     chmod 755 "$ombi_tmp/new"
-    # Ombi writes the base URL into its index.html when it starts
-    chown ombi:nogroup "$ombi_tmp/new/ClientApp/dist/browser/index.html"
     echo_progress_done
 }
 
@@ -111,6 +118,7 @@ function _ombi_swap() {
         [[ -n $old ]] && mv "$old" /opt/Ombi
         return 1
     fi
+    chown ombi:nogroup /opt/Ombi/ClientApp/dist/browser/index.html
     rm -rf "$ombi_tmp"
 }
 
@@ -118,6 +126,7 @@ function _ombi_swap() {
 function ombi_github_upgrade() {
     local active=
     _ombi_fetch || return 1
+    ombi_github_service
     systemctl -q is-active ombi && active=1 && systemctl stop ombi
     if ! _ombi_swap; then
         rm -rf "$ombi_tmp"
@@ -129,25 +138,51 @@ function ombi_github_upgrade() {
     return 0
 }
 
+# Purges the apt package with /etc/Ombi set aside: its purge deletes that folder, which holds Ombi's data.
+# A package only removed would keep that purge waiting for any clean-up of removed packages.
+function ombi_purge_package() {
+    local keep=/etc/Ombi.swizzin-keep
+    if [[ -e $keep ]]; then
+        echo_error "$keep exists: move Ombi's data back from it first"
+        return 1
+    fi
+    if [[ -d /etc/Ombi ]]; then mv /etc/Ombi "$keep" || return 1; fi
+    if ! dpkg -P ombi >> "$log" 2>&1; then
+        [[ -d $keep ]] && mv "$keep" /etc/Ombi
+        echo_error "Could not remove the apt package of Ombi (see $log)"
+        return 1
+    fi
+    [[ -d $keep ]] && mv "$keep" /etc/Ombi
+    return 0
+}
+
+# What the apt package pulled in stays: apt would otherwise autoremove it, Ombi needs libicu
+function _ombi_keep_dependencies() {
+    local p
+    for p in $(dpkg-query -W -f='${Depends}' ombi 2> /dev/null | tr ',' '\n' | sed 's/([^)]*)//g; s/|.*//; s/:.*//; s/[[:space:]]//g'); do
+        [[ $(dpkg-query -W -f='${db:Status-Status}' "$p" 2> /dev/null) == installed ]] && apt-mark manual "$p" >> "$log" 2>&1
+    done
+}
+
 # A server that has Ombi from apt moves to the GitHub release. /etc/Ombi, its data, stays as it is.
 function ombi_migrate_to_github() {
     local active=
     # downloaded first: a failure leaves the apt install untouched
     _ombi_fetch || return 1
     systemctl -q is-active ombi && active=1
+    _ombi_keep_dependencies
     systemctl stop ombi
-    if ! dpkg -r ombi >> "$log" 2>&1; then
+    if ! ombi_purge_package; then
         rm -rf "$ombi_tmp"
         [[ -n $active ]] && systemctl start ombi
-        echo_error "Could not remove the apt package of Ombi (see $log)"
         return 1
     fi
     ombi_github_service
     if ! _ombi_swap; then
-        echo_error "Could not install Ombi from GitHub: its release is in $ombi_tmp/new, see $log"
+        rm -rf "$ombi_tmp"
+        echo_error "Could not install Ombi from GitHub (see $log): run box upgrade ombi"
         return 1
     fi
-    rm -f /etc/apt/sources.list.d/ombi.list /etc/apt/preferences.d/ombi /usr/share/keyrings/ombi-archive-keyring.gpg
     systemctl enable -q ombi >> "$log" 2>&1
     [[ -n $active ]] && systemctl start ombi
     return 0
