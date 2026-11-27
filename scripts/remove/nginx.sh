@@ -63,4 +63,11 @@ if [[ -f /install/.deluge.lock ]]; then
     done
 fi
 
+# Shell in a Box back to its package settings without nginx
+if [[ -f /etc/systemd/system/shellinabox.service.d/swizzin-nginx.conf ]]; then
+    rm -f /etc/systemd/system/shellinabox.service.d/swizzin-nginx.conf
+    systemctl daemon-reload
+    if systemctl -q is-active shellinabox; then systemctl restart shellinabox; fi
+fi
+
 rm /install/.nginx.lock

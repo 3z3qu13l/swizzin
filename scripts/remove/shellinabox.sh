@@ -10,7 +10,8 @@ systemctl disable -q shellinabox
 
 apt_remove --purge shellinabox
 
-rm -rf /etc/systemd/system/shellinabox.service
+rm -rf /etc/systemd/system/shellinabox.service /etc/systemd/system/shellinabox.service.d
+systemctl daemon-reload
 rm -rf /install/.shellinabox.lock
 rm -rf /etc/nginx/apps/shell.conf
 systemctl reload nginx
