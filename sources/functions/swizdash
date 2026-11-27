@@ -5,8 +5,8 @@
 swizdash_dir="/opt/swizdash"
 # The release box installs, and its SHA-256: an archive changed on GitHub afterwards is refused.
 # A new swizdash release is installed by updating both here (box update, then box upgrade swizdash).
-swizdash_version="0.1.7"
-swizdash_sha256="0e2f82b4a26df1e588c7fade5689f66f332f240f63e68e37a096ba7a87aff07e"
+swizdash_version="0.1.8"
+swizdash_sha256="1c1425aa221c0b27cafbe6eafc744c992cb4c2781e4c8d909a7607b96c57ae84"
 swizdash_release="https://github.com/3z3qu13l/swizzin-dashboard/releases/download/v${swizdash_version}/swizdash.tar.gz"
 
 #shellcheck source=sources/functions/npm
