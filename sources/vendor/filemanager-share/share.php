@@ -24,6 +24,10 @@ if ($config['key'] === '' || !is_string($user) || !is_string($token) || !preg_ma
     die('No such file or it expired');
 }
 $_SERVER['REMOTE_USER'] = $user;
+// swizzin's ruTorrent pool: from now on only that user's files, links resolved
+if (function_exists('swizzin_rutorrent_confine')) {
+    swizzin_rutorrent_confine($user);
+}
 
 include __DIR__ . '/boot.php';
 
