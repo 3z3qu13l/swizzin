@@ -33,6 +33,8 @@ function _download_latest() {
     /opt/.venv/mylar/bin/pip install 'urllib3<2'
     # Python 3.13+ removed stdlib imghdr; Mylar still imports it.
     /opt/.venv/mylar/bin/pip install standard-imghdr &>> "${log}"
+    # Mylar puts its own lib/ first, and its old bundled natsort needs distutils (gone in Python 3.12): setuptools brings it back
+    /opt/.venv/mylar/bin/pip install setuptools &>> "${log}"
     chown -R "${mylar_owner}": /opt/mylar/
     chown -R "${mylar_owner}": /opt/.venv/mylar/
 }
