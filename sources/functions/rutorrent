@@ -32,7 +32,7 @@ function rutorrent_install() {
     install_rar
 
     if [[ ! -d /srv/rutorrent/plugins/filemanager ]]; then
-        git clone https://github.com/nelu/rutorrent-filemanager /srv/rutorrent/plugins/filemanager >> ${log} 2>&1 || {
+        rutorrent_fm_clone || {
             echo_error "git of file-manager plugin to main plugins seems to have failed"
         }
         rutorrent_fm_config
@@ -596,26 +596,71 @@ function rutorrent_php_needed() {
         [[ ! -S /run/php-fpm-rutorrent.sock ]]
 }
 
-# ruTorrent's public share and stream links (rtx: filemanager-share, fileshare, filemanager-media) run its
-# code for the user who shared: in its pool too, which alone reads the profiles
+# ruTorrent's public share links (rtx: filemanager-share, fileshare) run its code for the user who shared: in
+# its pool too, which alone reads the profiles
 function _rutorrent_nginx_public() {
-    local p
     echo "# written by swizzin: ruTorrent's public links run in ruTorrent's PHP pool"
     # ^~: longer than /fancyindex and no regex after it, so its own .php location is not used. The link
     # carries its token as PATH_INFO: /fancyindex/share.php/<token>
-    for p in share stream; do
-        cat << EOF
-location ^~ /fancyindex/$p.php {
-    fastcgi_split_path_info ^(.+?\\.php)(/.+)\$;
-    try_files \$fastcgi_script_name =404;
-    set \$path_info \$fastcgi_path_info;
-    fastcgi_param PATH_INFO \$path_info;
+    cat << 'EOF'
+location ^~ /fancyindex/share.php {
+    fastcgi_split_path_info ^(.+?\.php)(/.+)$;
+    try_files $fastcgi_script_name =404;
+    set $path_info $fastcgi_path_info;
+    fastcgi_param PATH_INFO $path_info;
     include fastcgi_params;
-    fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     fastcgi_pass unix:/run/php-fpm-rutorrent.sock;
 }
 EOF
-    done
+}
+
+# The file manager's media plugin plays a file as view.php/<path>: /rutorrent gives PHP what follows a
+# script's name as PATH_INFO. The public stream.php its earlier version used is no longer routed. Both put
+# back as they were if nginx refuses them, and that conf not tried again until it changes
+function rutorrent_nginx_media() {
+    local f=/etc/nginx/apps/rutorrent.conf p=/etc/nginx/apps/rutorrent-public.conf bf bp
+    bf=$(mktemp) || return 1
+    bp=$(mktemp) || {
+        rm -f "$bf"
+        return 1
+    }
+    # an empty copy put back would leave /rutorrent without its login
+    if ! cp -p "$f" "$bf" || { [[ -f $p ]] && ! cp -p "$p" "$bp"; }; then
+        rm -f "$bf" "$bp"
+        return 1
+    fi
+    # shellcheck disable=SC2016 # nginx's variables, written as they are
+    sed -i -E -e 's/^(\s*)location ~ \\\.php\$ \{/\1location ~ \\.php(\/|$) {/' \
+        -e 's/^(\s*)fastcgi_param SCRIPT_FILENAME \$request_filename;/\1fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;\n\1fastcgi_param PATH_INFO $fastcgi_path_info;/' "$f"
+    [[ -f $p ]] && _rutorrent_nginx_public > "$p"
+    if _rutorrent_nginx_media_on && nginx -t >> "$log" 2>&1; then
+        rm -f "$bf" "$bp" /install/.rutorrent.nginx-media.failed
+        return 0
+    fi
+    cat "$bf" > "$f"
+    [[ -f $p ]] && cat "$bp" > "$p"
+    rm -f "$bf" "$bp"
+    _rutorrent_nginx_media_sum > /install/.rutorrent.nginx-media.failed
+    echo_warn "nginx refused the PATH_INFO change in $f, the file manager's media plugin cannot play files"
+    return 1
+}
+
+# shellcheck disable=SC2016 # nginx's variables, searched as they are
+function _rutorrent_nginx_media_on() {
+    local f=/etc/nginx/apps/rutorrent.conf p=/etc/nginx/apps/rutorrent-public.conf
+    grep -qF 'location ~ \.php(/|$) {' "$f" && grep -qF 'fastcgi_param PATH_INFO $fastcgi_path_info;' "$f" &&
+        ! grep -qF 'SCRIPT_FILENAME $request_filename;' "$f" &&
+        { [[ ! -f $p ]] || [[ $(< "$p") == "$(_rutorrent_nginx_public)" ]]; }
+}
+
+function _rutorrent_nginx_media_sum() {
+    cat /etc/nginx/apps/rutorrent.conf /etc/nginx/apps/rutorrent-public.conf 2> /dev/null | md5sum
+}
+
+function rutorrent_nginx_media_needed() {
+    [[ -f /etc/nginx/apps/rutorrent.conf ]] && ! _rutorrent_nginx_media_on &&
+        [[ $(cat /install/.rutorrent.nginx-media.failed 2> /dev/null) != "$(_rutorrent_nginx_media_sum)" ]]
 }
 
 # nginx's /rutorrent location, and the public links, go to ruTorrent's pool. Put back as they were if nginx
@@ -853,6 +898,99 @@ RUFMC
     fi
 }
 
+# The file manager, at the commit its share and media plugins (box rtx) were tested with: they use its classes
+function rutorrent_fm_clone() {
+    GIT_TERMINAL_PROMPT=0 timeout 120 git clone -q https://github.com/nelu/rutorrent-filemanager /srv/rutorrent/plugins/filemanager >> "$log" 2>&1 &&
+        git -C /srv/rutorrent/plugins/filemanager checkout -q b88cf1faad2a10203ca916cab2004e50beabdbc8 >> "$log" 2>&1
+}
+
+# ruTorrent 5 or later, from its git clone or the tag kept while that is fetched again. Unknown is not 5: the
+# file manager plugins below are for 5, earlier releases keep the ones rtx gave them
+function _rutorrent_v5() {
+    local t
+    t=$(rutorrent_git describe --tags --abbrev=0 2> /dev/null) || t=$(cat /install/.rutorrent.tag 2> /dev/null)
+    [[ -n $t && ! $t =~ ^v[34]\. ]]
+}
+
+# Replaces plugin $1 with folder $2, prepared out of plugins/ (ruTorrent would load a half copied one), only
+# while plugins/ is root's: root never works in a folder another account could swap
+function _rutorrent_plugin_swap() {
+    local d=/srv/rutorrent/plugins/$1
+    if [[ -L /srv/rutorrent/plugins || $(stat -c %U /srv/rutorrent/plugins 2> /dev/null) != root ]]; then
+        echo_warn "/srv/rutorrent/plugins is not root's, $1 was not installed"
+        return 1
+    fi
+    rm -rf "$d"
+    mv "$2" "$d"
+}
+
+# The file manager's share plugin, swizzin's corrected copy (sources/vendor/README.md), and its public link
+function rutorrent_fm_share_install() {
+    local tmp rc=0
+    tmp=$(mktemp -d -p /srv) || return 1
+    # box update makes sources/ readable by root only
+    if cp -r /etc/swizzin/sources/vendor/filemanager-share "$tmp/p" && chmod -R u=rwX,go=rX "$tmp/p"; then
+        _rutorrent_plugin_swap filemanager-share "$tmp/p" || rc=1
+    else
+        echo_error "Could not install filemanager-share"
+        rc=1
+    fi
+    rm -rf "$tmp"
+    ((rc == 0)) || return 1
+    rutorrent_fm_share_link
+}
+
+# Its key and public link as installed. Silent: run at each box update, where ruTorrent may have moved to its
+# own account
+function rutorrent_fm_share_link() {
+    rutorrent_fm_share_key
+    [[ -d /srv/fancyindex ]] || return 0
+    [[ $(readlink /srv/fancyindex/share.php) == /srv/rutorrent/plugins/filemanager-share/share.php ]] ||
+        ln -sfn /srv/rutorrent/plugins/filemanager-share/share.php /srv/fancyindex/share.php >> "$log" 2>&1 ||
+        echo_warn "Could not link /srv/fancyindex/share.php, share links will not open"
+}
+
+# The key of the share links, readable by ruTorrent's PHP account only: in /srv/rutorrent, rutorrent_perms
+# makes every file readable by all. Its group follows that account
+function rutorrent_fm_share_key() {
+    local k=/install/.rutorrent.share.key
+    if [[ ! -s $k ]]; then
+        (umask 077 && tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32 > "$k")
+    fi
+    chown root:"$(rutorrent_web_account)" "$k" && chmod 0640 "$k"
+}
+
+# True when the installed share plugin is not swizzin's copy. Its conf.php, which an admin may tune, is left out
+function rutorrent_fm_share_needed() {
+    local d=/srv/rutorrent/plugins/filemanager-share
+    [[ -d $d ]] && _rutorrent_v5 || return 1
+    ! diff -rq -x conf.php /etc/swizzin/sources/vendor/filemanager-share "$d" > /dev/null 2>&1
+}
+
+# The file manager's media plugin. It plays a file as view.php/<path> under /rutorrent (rutorrent_nginx_media),
+# behind its login: the public stream.php earlier versions were linked as is removed
+function rutorrent_fm_media_install() {
+    local tmp rc=0
+    tmp=$(mktemp -d -p /srv) || return 1
+    if GIT_TERMINAL_PROMPT=0 timeout 120 git clone -q https://github.com/nelu/rutorrent-filemanager-media.git "$tmp/p" >> "$log" 2>&1 &&
+        git -C "$tmp/p" checkout -q cddfd9d4c37a8610ee468e3253dad2b8e7359af4 >> "$log" 2>&1; then
+        _rutorrent_plugin_swap filemanager-media "$tmp/p" || rc=1
+    else
+        echo_warn "Could not download filemanager-media"
+        rc=1
+    fi
+    rm -rf "$tmp"
+    ((rc == 0)) || return 1
+    rm -f /srv/fancyindex/stream.php
+}
+
+# True when the installed media plugin is the one rtx pinned until 2026 (1.1)
+function rutorrent_fm_media_needed() {
+    local d=/srv/rutorrent/plugins/filemanager-media
+    [[ -d $d ]] && _rutorrent_v5 || return 1
+    grep -qx 'plugin.version: 1.1' "$d/plugin.info" 2> /dev/null
+}
+
 # Profiles and per-user conf are for PHP only: served, they gave any web user another user's tracker logins,
 # and a .php file a user placed in their profile ran as PHP
 function rutorrent_nginx_deny() {
@@ -875,10 +1013,11 @@ location /rutorrent {
 
 $(rutorrent_nginx_deny)
 
-  location ~ \.php$ {
+  location ~ \.php(/|\$) {
     fastcgi_split_path_info ^(.+\.php)(/.+)\$;
     fastcgi_pass unix:/run/php/$sock.sock;
-    fastcgi_param SCRIPT_FILENAME \$request_filename;
+    fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+    fastcgi_param PATH_INFO \$fastcgi_path_info;
     include fastcgi_params;
     fastcgi_index index.php;
   }
