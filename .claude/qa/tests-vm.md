@@ -1,70 +1,70 @@
-# Grille de tests sur VM — fork swizzin
+# VM test grid — swizzin fork
 
-Ce que les tests « installation neuve qui réussit » ne voient pas. Tiré des 32 checklists de l'agent `swizzin-critic` (`.claude/agent-memory/swizzin-critic/`) ; la source de chaque ligne est entre crochets.
+What "fresh install that succeeds" tests do not see. Drawn from the 32 checklists of the `swizzin-critic` agent (`.claude/agent-memory/swizzin-critic/`); the source of each line is in brackets.
 
-**Ne pas tout jouer à chaque fois.** Choisir les familles selon ce que touche le changement :
+**Do not run everything every time.** Pick the families according to what the change touches:
 
-| Le changement touche… | Familles à jouer |
+| The change touches… | Families to run |
 |---|---|
-| un script `install` / `upgrade` d'appli | 1, 2, 3, 6 |
-| un script `update` (migration, réparation) | 1, 3, 6 |
-| droits, ACL, sudoers, dossiers des utilisateurs | 1, 4, 6 |
-| mots de passe, comptes | 3, 4 |
-| nginx, adresse d'écoute, proxy | 5, 6 |
-| sources apt, clés, versions d'OS | 2, 3, 6 |
+| an app `install` / `upgrade` script | 1, 2, 3, 6 |
+| an `update` script (migration, repair) | 1, 3, 6 |
+| permissions, ACLs, sudoers, user folders | 1, 4, 6 |
+| passwords, accounts | 3, 4 |
+| nginx, listen address, proxy | 5, 6 |
+| apt sources, keys, OS versions | 2, 3, 6 |
 
-## 1. État du serveur au départ
+## 1. Starting state of the server
 
-- [ ] **Serveur ancien mis à jour** (installé avec une version précédente du fork, puis `box update`), pas seulement une installation neuve. Restes typiques : anciens fichiers systemd avec `%I`, Java `adoptopenjdk`, paquets désinstallés en état « rc ». [systemd_template, first_run_wizard, new_jvm_app, deb_to_tarball]
-- [ ] **Deux utilisateurs au moins**, dont un non-master. Vérifier que l'autre utilisateur n'a pas été redémarré ni reconfiguré sans raison. [update_repair_blocks]
-- [ ] **`box update` lancé deux fois de suite** : le second passage ne change rien et n'affiche pas d'avertissement. [vendored_plugin_migration, acl_migration]
-- [ ] **Migration interrompue** (Ctrl+C au milieu, puis relance) : le serveur repart d'un état intermédiaire sans casser. [bash_installer, ownership_migration]
+- [ ] **Old server updated** (installed with an earlier version of the fork, then `box update`), not only a fresh install. Typical leftovers: old systemd files with `%I`, `adoptopenjdk` Java, uninstalled packages in "rc" state. [systemd_template, first_run_wizard, new_jvm_app, deb_to_tarball]
+- [ ] **At least two users**, one of them not the master. Check that the other user was not restarted or reconfigured for no reason. [update_repair_blocks]
+- [ ] **`box update` run twice in a row**: the second pass changes nothing and shows no warning. [vendored_plugin_migration, acl_migration]
+- [ ] **Interrupted migration** (Ctrl+C halfway, then rerun): the server picks up from an intermediate state without breaking. [bash_installer, ownership_migration]
 
-## 2. Versions d'OS et architectures
+## 2. OS versions and architectures
 
-- [ ] **La plus ancienne supportée** (Ubuntu 20.04 focal, Debian 11 bullseye) : vieux git, noyau < 5.10, cgroup v1. [bash_installer, nginx_disable_symlinks, php_pool_split]
-- [ ] **Debian 13 trixie** : `/tmp` en RAM (gros fichiers), clés apt SHA1 refusées, `/etc/sysctl.conf` ignoré au redémarrage → **redémarrer la VM** et revérifier. [app_swap_install, os_support, sysctl_revert]
-- [ ] **Ubuntu 26.04 resolute** : `test` et `sudo` réécrits en Rust (contrôles de droits faux, `visudo -q` bavard). [rust_coreutils, sudoers_acl]
-- [ ] **ARM (arm64/armhf)** : paquet absent pour l'architecture, démarrage lent de l'appli. [new_jvm_app, app_swap_install]
+- [ ] **The oldest supported** (Ubuntu 20.04 focal, Debian 11 bullseye): old git, kernel < 5.10, cgroup v1. [bash_installer, nginx_disable_symlinks, php_pool_split]
+- [ ] **Debian 13 trixie**: `/tmp` in RAM (large files), SHA1 apt keys refused, `/etc/sysctl.conf` ignored at boot → **reboot the VM** and check again. [app_swap_install, os_support, sysctl_revert]
+- [ ] **Ubuntu 26.04 resolute**: `test` and `sudo` rewritten in Rust (wrong permission checks, chatty `visudo -q`). [rust_coreutils, sudoers_acl]
+- [ ] **ARM (arm64/armhf)**: package missing for the architecture, slow app start. [new_jvm_app, app_swap_install]
 
-## 3. Pannes à provoquer
+## 3. Failures to provoke
 
-- [ ] **Téléchargement en échec** pendant une mise à jour (couper le réseau ou bloquer `github.com`) : l'ancienne version doit rester en place et fonctionner. [bash_installer, app_swap_install]
-- [ ] **Source apt cassée** (clé invalide, dépôt mort) : `box update` ne doit pas s'arrêter au premier script. [deb_to_tarball, apt_source_disable, bash_installer]
-- [ ] **Disque plein** pendant une réécriture de config : la config ne doit pas finir vide. [config_rewrite]
-- [ ] **Paquet `acl` absent ou disque sans ACL** : l'utilisateur ne doit pas perdre l'accès (pas d'erreur 500 nginx). [sudoers_acl, shared_profile_perm_walks]
-- [ ] **Sans terminal** : `ssh serveur 'box …'`, tâche cron, installation automatique (`setup.sh --env`, voir `unattended.example.env`) : le message d'erreur doit rester lisible. [password_plumbing]
-- [ ] **`lsof` absent** sur serveur neuf + `apt` en cours (apt-daily) : l'attente du verrou fonctionne quand même. [apt_lock_wait]
-- [ ] **Le script échoue** : `echo $?` après `box install|update` doit être non nul. [apt_lock_wait, first_run_wizard]
+- [ ] **Failed download** during an upgrade (cut the network or block `github.com`): the old version must stay in place and work. [bash_installer, app_swap_install]
+- [ ] **Broken apt source** (invalid key, dead repository): `box update` must not stop at the first script. [deb_to_tarball, apt_source_disable, bash_installer]
+- [ ] **Full disk** during a config rewrite: the config must not end up empty. [config_rewrite]
+- [ ] **`acl` package missing or disk without ACLs**: the user must not lose access (no nginx 500 error). [sudoers_acl, shared_profile_perm_walks]
+- [ ] **No terminal**: `ssh server 'box …'`, cron job, unattended install (`setup.sh --env`, see `unattended.example.env`): the error message must stay readable. [password_plumbing]
+- [ ] **`lsof` missing** on a fresh server + `apt` running (apt-daily): waiting for the lock still works. [apt_lock_wait]
+- [ ] **The script fails**: `echo $?` after `box install|update` must be non-zero. [apt_lock_wait, first_run_wizard]
 
-## 4. Données piégées
+## 4. Booby-trapped data
 
-- [ ] **Mots de passe** avec espace, `'`, `"`, `\`, accent, et commençant par `-` : connexion OK dans chaque appli touchée. [password_plumbing, new_jvm_app, bash_installer]
-- [ ] **Noms d'utilisateur** avec un `-`, et finissant par `u`. [systemd_template, php_pool_split]
-- [ ] **Liens symboliques posés par un utilisateur** non-master, là où root écrit ou fait `chown` (ex. `~/.config/<appli>/settings.json -> /etc/shadow`) : après le script, `/etc/shadow` est toujours à root. [root_ops_in_user_homes, apparmor_override, shared_profile_perm_walks]
-- [ ] **FIFO posé** à la place d'un fichier que root lit (`mkfifo`) : le script ne reste pas bloqué. [root_ops_in_user_homes, root_helper_polling]
-- [ ] **Valeur bizarre** dans la config d'une appli (port `8080; return 200`) : elle ne se retrouve pas dans la conf nginx. [loopback_bind_migration, root_ops_in_user_homes]
+- [ ] **Passwords** with a space, `'`, `"`, `\`, an accent, and starting with `-`: login OK in each app touched. [password_plumbing, new_jvm_app, bash_installer]
+- [ ] **User names** with a `-`, and ending with `u`. [systemd_template, php_pool_split]
+- [ ] **Symbolic links planted by a non-master user** where root writes or runs `chown` (e.g. `~/.config/<app>/settings.json -> /etc/shadow`): after the script, `/etc/shadow` still belongs to root. [root_ops_in_user_homes, apparmor_override, shared_profile_perm_walks]
+- [ ] **FIFO planted** instead of a file root reads (`mkfifo`): the script does not hang. [root_ops_in_user_homes, root_helper_polling]
+- [ ] **Odd value** in an app's config (port `8080; return 200`): it does not end up in the nginx conf. [loopback_bind_migration, root_ops_in_user_homes]
 
-## 5. Réseau
+## 5. Network
 
-- [ ] **Port autre que 443** ou redirection NAT : connexion à l'interface web OK. [reverse_proxy_host]
-- [ ] **Conteneur Docker** (*arr) qui joint une appli de l'hôte : toujours joignable si elle passe en `127.0.0.1`. [config_rewrite]
-- [ ] **Adresse d'écoute choisie à la main** (IP LAN/VPN, `::`) : conservée après mise à jour. [config_rewrite, loopback_bind_migration]
+- [ ] **Port other than 443** or NAT forwarding: login to the web interface OK. [reverse_proxy_host]
+- [ ] **Docker container** (*arr) reaching an app on the host: still reachable if it moves to `127.0.0.1`. [config_rewrite]
+- [ ] **Listen address chosen by hand** (LAN/VPN IP, `::`): kept after an update. [config_rewrite, loopback_bind_migration]
 
-## 6. Cycle de vie complet
+## 6. Full lifecycle
 
-- [ ] **Installer → mettre à jour → désinstaller → réinstaller.** Après la désinstallation, rien ne reste :
-  - [ ] pas de source apt renommée (`*.list.disabled` ou équivalent) [apt_source_disable]
-  - [ ] pas d'unité systemd ni de conf nginx orpheline [bash_installer]
-  - [ ] `apt autoremove` n'a pas retiré une bibliothèque utilisée par une autre appli [deb_to_tarball, new_jvm_app]
-  - [ ] pas d'entrée ACL à l'UID d'un utilisateur supprimé [named_acl_grant, php_pool_split]
-- [ ] **`box remove nginx` après coup** : les applis passées en `127.0.0.1` redeviennent joignables. [config_rewrite, loopback_bind_migration, web_terminal_restart]
-- [ ] **Changement lancé depuis le terminal web** (port 4200) : la session n'est pas coupée en plein milieu. [web_terminal_restart]
+- [ ] **Install → upgrade → remove → reinstall.** After the removal, nothing is left:
+  - [ ] no renamed apt source (`*.list.disabled` or similar) [apt_source_disable]
+  - [ ] no orphan systemd unit or nginx conf [bash_installer]
+  - [ ] `apt autoremove` did not remove a library used by another app [deb_to_tarball, new_jvm_app]
+  - [ ] no ACL entry for the UID of a deleted user [named_acl_grant, php_pool_split]
+- [ ] **`box remove nginx` afterwards**: apps moved to `127.0.0.1` become reachable again. [config_rewrite, loopback_bind_migration, web_terminal_restart]
+- [ ] **Change started from the web terminal** (port 4200): the session is not cut off halfway. [web_terminal_restart]
 
-## Contrôles à faire à la fin de chaque test
+## Checks at the end of each test
 
-- [ ] `nginx -t` et `visudo -cq` (le global, pas fichier par fichier) [sudoers_acl]
-- [ ] `getfacl <dossier>` sur les dossiers touchés : droits relus, pas supposés [acl_migration]
-- [ ] Aucun mot de passe dans `/root/logs/*.log` ni dans `ps aux` pendant l'exécution [log_scrub, bash_installer]
-- [ ] `/var/log/auth.log` ne se remplit pas à chaque contrôle automatique [root_helper_polling]
-- [ ] `systemctl --failed` vide
+- [ ] `nginx -t` and `visudo -cq` (the global one, not file by file) [sudoers_acl]
+- [ ] `getfacl <folder>` on the folders touched: permissions read back, not assumed [acl_migration]
+- [ ] No password in `/root/logs/*.log` or in `ps aux` while it runs [log_scrub, bash_installer]
+- [ ] `/var/log/auth.log` does not fill up at each automatic check [root_helper_polling]
+- [ ] `systemctl --failed` empty
