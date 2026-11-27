@@ -100,6 +100,7 @@ function _cli() {
     arg=("$@")
     packages=("${arg[@]:1}")
     repo=($(find /usr/local/bin/swizzin/install -type f -printf "%f\n" | cut -d "." -f 1))
+    local failed=()
     for app in "${packages[@]}"; do
         if [[ -f /install/.${app}.lock ]]; then
             echo_warn "Package $app already installed"
@@ -107,13 +108,18 @@ function _cli() {
             if [[ "${repo[*]}" =~ $app ]]; then
                 echo_info "Installing $app"
                 echo_docs "applications/$app"
-                bash /usr/local/bin/swizzin/install/$app.sh
+                bash /usr/local/bin/swizzin/install/$app.sh || failed+=("$app")
             else
                 echo_warn "Package $app not found"
+                failed+=("$app")
             fi
         fi
     done
     _homepage_refresh
+    if ((${#failed[@]})); then
+        echo_error "Not installed: ${failed[*]}"
+        return 1
+    fi
 }
 
 function _clr() {
@@ -781,7 +787,7 @@ case "$1" in
             echo_error "You must choose some packages"
             exit 1
         fi
-        _cli "$@"
+        _cli "$@" || box_rc=1
         ;;
     "remove" | "rm")
         if [[ -z $2 ]]; then
@@ -878,3 +884,4 @@ if [[ $runtests == "true" ]]; then
     echo_warn "$testmsg"
     _run_tests
 fi
+exit "${box_rc:-0}"

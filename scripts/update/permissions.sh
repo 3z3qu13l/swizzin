@@ -1,6 +1,10 @@
 #!/bin/bash
 
-find /home -mindepth 1 -maxdepth 1 -type d -exec chmod 750 {} \;
+# Only swizzin's users: another account's home (an admin's 700) is not ours to open to its group.
+# A root-owned home is an SFTP chroot, left as it is
+for u in $(_get_user_list); do
+    if [[ -d /home/$u && ! -L /home/$u && $(stat -c %U "/home/$u") == "$u" ]]; then chmod 750 "/home/$u"; fi
+done
 master=$(cut -d: -f1 < /root/.master.info)
 
 if grep -q 'export PATH=$PATH:/usr/local/bin/swizzin' /root/.profile; then
