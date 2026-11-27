@@ -2,15 +2,15 @@
 
 ## Review
 
-Dans ce dépôt, l'agent de review est **`swizzin-critic`** (`.claude/agents/swizzin-critic.md`). Il remplace tout autre agent de review désigné par les consignes globales (review demandée, avant toute PR).
+In this repository the review agent is **`swizzin-critic`** (`.claude/agents/swizzin-critic.md`). It replaces any other review agent named by the global instructions (review requested, before any PR).
 
 ## Pull requests
 
-Titre **et description** de PR **en anglais**, comme les messages de commit. Le titre suit le format des commits (`fix(app): …`, `feat: …`).
+PR title **and description** in **English**, like commit messages. The title follows the commit format (`fix(app): …`, `feat: …`).
 
-## Ajout ou retrait d'une application
+## Adding or removing an application
 
-Toute application ajoutée, retirée ou renommée (`scripts/install/<app>.sh`) a aussi une entrée dans le catalogue du dashboard : `catalog/apps.json` du dépôt `3z3qu13l/swizzin-dashboard`. Sans elle, l'appli n'a pas de bouton Installer dans le dashboard.
+Any application added, removed or renamed (`scripts/install/<app>.sh`) also has an entry in the dashboard catalog: `catalog/apps.json` in the `3z3qu13l/swizzin-dashboard` repository. Without it, the app has no Install button in the dashboard.
 
-- Le proposer dès le départ, dans le même plan que la PR swizzin, sans attendre qu'on le demande.
-- Suite : PR dashboard, release (voir son CHANGELOG), puis `swizdash_version` et `swizdash_sha256` dans `sources/functions/swizdash`.
+- Propose it from the start, in the same plan as the swizzin PR, without waiting to be asked.
+- Then: dashboard PR, release (see its CHANGELOG), then `swizdash_version` and `swizdash_sha256` in `sources/functions/swizdash`.
