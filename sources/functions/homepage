@@ -104,6 +104,7 @@ komga|Komga|/komga/|Media|komga
 filebrowser|File Browser|/filebrowser/|Tools|filebrowser
 filebrowserquantum|FileBrowser Quantum|/filebrowserquantum/|Tools|filebrowser
 syncthing|Syncthing|/syncthing/|Tools|syncthing
+transfersh|transfer.sh|/transfersh/|Tools|mdi-cloud-upload
 lounge|The Lounge|/irc/|Tools|the-lounge
 netdata|Netdata|/netdata/|Tools|netdata
 librespeed|LibreSpeed|/librespeed/|Tools|librespeed

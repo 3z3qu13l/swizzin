@@ -1,0 +1,42 @@
+#!/bin/bash
+# transfer.sh helpers
+
+transfersh_bin=/opt/transfersh/transfersh
+
+# Downloads the latest transfer.sh release to $transfersh_bin, checked against its published sha256
+function transfersh_download_latest() {
+    local arch version name tmp sum active=
+    case "$(_os_arch)" in
+        amd64) arch=amd64 ;;
+        arm64) arch=arm64-v8a ;;
+        armhf) arch=armv7 ;;
+        *)
+            echo_error "$(_os_arch) is not supported by transfer.sh"
+            exit 1
+            ;;
+    esac
+    version=$(github_latest_version dutchcoders/transfer.sh)
+    if [[ -z $version ]]; then
+        echo_error "Could not find the latest transfer.sh release"
+        exit 1
+    fi
+    name="transfersh-${version}-linux-${arch}"
+
+    echo_progress_start "Downloading transfer.sh ${version}"
+    mkdir -p "${transfersh_bin%/*}"
+    tmp=$(mktemp "${transfersh_bin}.XXXXXX")
+    sum=$(curl -fsSL "https://github.com/dutchcoders/transfer.sh/releases/download/${version}/${name}.sha256sum" 2>> "$log" | awk '{ print $1 }')
+    if [[ -z $sum ]] || ! curl -fsSL "https://github.com/dutchcoders/transfer.sh/releases/download/${version}/${name}" -o "$tmp" >> "$log" 2>&1 ||
+        ! echo "${sum}  ${tmp}" | sha256sum -c --status; then
+        rm -f "$tmp"
+        echo_error "Could not download transfer.sh"
+        exit 1
+    fi
+    chmod 755 "$tmp"
+    systemctl -q is-active transfersh && active=1 && systemctl stop transfersh
+    mv "$tmp" "$transfersh_bin"
+    echo "$version" > "${transfersh_bin%/*}/.swizzin-version"
+    [[ -n $active ]] && systemctl start transfersh
+    echo_progress_done
+    return 0
+}
