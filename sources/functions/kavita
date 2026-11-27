@@ -43,6 +43,8 @@ function kavita_download_latest() {
     chmod 755 "$kavita_dir/Kavita"
     echo "${version#v}" > "$kavita_dir/.swizzin-version"
     chown -R "$(_get_master_username):" "$kavita_dir"
+    # its database holds the accounts; the archive ships this folder open to all
+    chmod 700 "$kavita_dir/config"
     [[ -n $active ]] && systemctl start kavita
     return 0
 }
