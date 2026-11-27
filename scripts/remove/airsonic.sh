@@ -19,6 +19,8 @@ for p in temurin-8-jdk adoptopenjdk-8-hotspot openjdk-8-jre openjdk-8-jre-headle
     dpkg -s "$p" > /dev/null 2>&1 && java8+=("$p")
 done
 ((${#java8[@]})) && apt_remove --purge "${java8[@]}"
+# adoptopenjdk.jfrog.io is gone: its source makes every apt update fail
+rm -f /etc/apt/sources.list.d/adoptopenjdk.list /usr/share/keyrings/adoptopenjdk-archive-keyring.gpg
 if ! dpkg -l 'temurin-*' 2> /dev/null | grep -q '^ii'; then
     rm -f /etc/apt/sources.list.d/temurin.list /usr/share/keyrings/temurin-archive-keyring.gpg
 fi

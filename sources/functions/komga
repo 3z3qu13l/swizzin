@@ -15,8 +15,8 @@ function komga_java() {
 # Java 25 from the distribution, and the image libraries Komga loads to read WebP, HEIF and JPEG XL
 # (it looks for the unversioned .so the -dev packages bring)
 function komga_dependencies() {
-    if [[ $(_os_arch) != amd64 && $(_os_arch) != arm64 ]]; then
-        echo_error "Komga needs Java 25, which $(_os_arch) does not have"
+    if [[ $(apt-cache policy openjdk-25-jre-headless 2> /dev/null | awk '/Candidate:/ { print $2 }') =~ ^(|\(none\))$ ]]; then
+        echo_error "Komga needs Java 25, which $(_os_codename) on $(_os_arch) does not have"
         exit 1
     fi
     apt_install openjdk-25-jre-headless libwebp-dev libheif-dev libjxl-dev
@@ -46,12 +46,50 @@ function komga_download_latest() {
         exit 1
     fi
     chmod 644 "$tmp"
+    local db old= dbs=("$(_komga_config)"/database.sqlite{,-wal,-shm})
     systemctl -q is-active komga && active=1 && systemctl stop komga
+    # a release that does not start goes back, with the database it may have migrated (one way only)
+    if [[ -f $komga_dir/komga.jar ]]; then
+        old=1
+        cp -p "$komga_dir/komga.jar" "$komga_dir/komga.jar.old"
+        cp -p "$komga_dir/.swizzin-version" "$komga_dir/.swizzin-version.old" 2> /dev/null
+        for db in "${dbs[@]}"; do
+            rm -f "$db.swizzin-bak"
+            [[ -f $db ]] && cp -p "$db" "$db.swizzin-bak"
+        done
+    fi
     mv "$tmp" "$komga_dir/komga.jar"
     echo "$version" > "$komga_dir/.swizzin-version"
-    [[ -n $active ]] && systemctl start komga
     echo_progress_done
+    if [[ -n $active ]]; then
+        systemctl start komga
+        if [[ -n $old ]] && ! _komga_wait; then
+            systemctl stop komga
+            mv "$komga_dir/komga.jar.old" "$komga_dir/komga.jar"
+            mv "$komga_dir/.swizzin-version.old" "$komga_dir/.swizzin-version" 2> /dev/null
+            for db in "${dbs[@]}"; do
+                rm -f "$db"
+                [[ -f $db.swizzin-bak ]] && mv "$db.swizzin-bak" "$db"
+            done
+            systemctl start komga
+            echo_error "Komga ${version} did not start: the previous release and its database are back"
+            exit 1
+        fi
+    fi
+    rm -f "$komga_dir/komga.jar.old" "$komga_dir/.swizzin-version.old"
+    for db in "${dbs[@]}"; do rm -f "$db.swizzin-bak"; done
     return 0
+}
+
+# Waits for Komga to answer, up to 5 minutes: its first start migrates the database
+function _komga_wait() {
+    local i api
+    api=$(_komga_api)
+    for ((i = 0; i < 150; i++)); do
+        curl -sf --max-time 10 -o /dev/null "$api/api/v1/claim" && return 0
+        sleep 2
+    done
+    return 1
 }
 
 # The base of Komga's API on this server
@@ -97,6 +135,11 @@ function komga_claim() {
     done
     if [[ $claimed == false ]]; then
         pw=$(_get_user_password "$(_get_master_username)")
+        # Komga reads headers as Latin-1 but checks logins as UTF-8: an accented password would never log in
+        if LC_ALL=C grep -q '[^ -~]' <<< "$pw"; then
+            echo "Komga cannot take a password with characters outside ASCII through its claim" >> "$log"
+            pw=
+        fi
         # the password goes in a header: curl reads it from stdin, not from its command line,
         # quoted for curl's config syntax
         pw=${pw//\\/\\\\}
