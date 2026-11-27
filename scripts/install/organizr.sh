@@ -62,7 +62,7 @@ function organizr_setup() {
         reg_pass="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c16)"
         form_key="$(php -r "echo password_hash(substr(\"$hash_key\", 2, 10), PASSWORD_BCRYPT);")"
 
-        cat > /root/.organizr << EOF
+        (umask 077 && cat > /root/.organizr) << EOF
 api_key = $api_key
 hash_key = $hash_key
 reg_pass = $reg_pass
