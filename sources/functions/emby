@@ -10,19 +10,19 @@ function emby_finish_wizard() {
     systemctl -q is-active emby-server || return 0
     # on a first start system.xml is only written once Emby is up
     for ((i = 0; i < 60; i++)); do
-        curl -sf -o /dev/null "$api/System/Info/Public" && break
+        curl -sf --max-time 10 -o /dev/null "$api/System/Info/Public" && break
         sleep 2
     done
     grep -q '<IsStartupWizardCompleted>true</IsStartupWizardCompleted>' "$conf" 2> /dev/null && return 0
     user=$(_get_master_username)
     pw=$(_get_user_password "$user")
     if [[ -n $pw ]] &&
-        curl -sf -o /dev/null -H 'Content-Type: application/json' \
+        curl -sf --max-time 10 -o /dev/null -H 'Content-Type: application/json' \
             -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}' "$api/Startup/Configuration" &&
-        curl -sf -o /dev/null "$api/Startup/User" &&
+        curl -sf --max-time 10 -o /dev/null "$api/Startup/User" &&
         printf '%s' "$pw" | jq -Rs --arg n "$user" '{Name: $n, Password: .}' |
-        curl -sf -o /dev/null -H 'Content-Type: application/json' --data @- "$api/Startup/User" &&
-        curl -sf -o /dev/null -X POST "$api/Startup/Complete"; then
+        curl -sf --max-time 10 -o /dev/null -H 'Content-Type: application/json' --data @- "$api/Startup/User" &&
+        curl -sf --max-time 10 -o /dev/null -X POST "$api/Startup/Complete"; then
         echo_info "Emby's admin is ${user}, with the master password"
         return 0
     fi

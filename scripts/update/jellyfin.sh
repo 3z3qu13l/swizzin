@@ -106,3 +106,12 @@ if [[ -f /install/.jellyfin.lock ]]; then
         echo_progress_done "Jellyfin updated"
     fi
 fi
+#
+# Installs made before the wizard was finished at install time left it open to whoever reaches the server first
+if [[ -f /install/.jellyfin.lock ]] && systemctl -q is-active jellyfin &&
+    ! grep -q '<IsStartupWizardCompleted>true</IsStartupWizardCompleted>' /etc/jellyfin/system.xml 2> /dev/null; then
+    #shellcheck source=sources/functions/jellyfin
+    . /etc/swizzin/sources/functions/jellyfin
+    echo_progress_start "Finishing Jellyfin's first-run wizard"
+    if jellyfin_finish_wizard; then echo_progress_done; else echo_progress_done "Not finished"; fi
+fi
