@@ -16,9 +16,12 @@ else
     _kavita_set '.IpAddresses = "127.0.0.1" | .BaseUrl = "/kavita/"'
 fi
 
-# nginx's password stays in front until Kavita has an admin (kavita_create_admin)
-open=
-[[ -f $kavita_dir/config/.swizzin-open ]] && open="auth_basic off;"
+# the master's nginx password stays in front until Kavita has an admin (kavita_create_admin)
+if [[ -f $kavita_dir/config/.swizzin-open ]]; then
+    auth="auth_basic off;"
+else
+    auth="auth_basic \"What's the password?\"; auth_basic_user_file /etc/htpasswd.d/htpasswd.$(_get_master_username);"
+fi
 
 cat > /etc/nginx/apps/kavita.conf <<- NGX
 	location /kavita/ {
@@ -32,6 +35,6 @@ cat > /etc/nginx/apps/kavita.conf <<- NGX
 	    proxy_set_header Connection \$http_connection;
 	    proxy_buffering off;
 	    client_max_body_size 0;
-	    ${open}
+	    ${auth}
 	}
 NGX
