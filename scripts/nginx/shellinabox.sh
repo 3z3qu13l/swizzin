@@ -20,13 +20,33 @@ location /shell/ {
 }
 RAD
 fi
-if [[ -z $(grep disable-ssl /etc/default/shellinabox) ]]; then
-    sed -i 's/SHELLINABOX_ARGS="/SHELLINABOX_ARGS="--disable-ssl /g' /etc/default/shellinabox
-fi
-if [[ -z $(grep localhost-only /etc/default/shellinabox) ]]; then
-    sed -i 's/SHELLINABOX_ARGS="/SHELLINABOX_ARGS="--localhost-only /g' /etc/default/shellinabox
-fi
+# Behind nginx, shellinabox must only answer on 127.0.0.1, or its login prompt is open to the network without
+# nginx's password. Set in a drop-in of ours: /etc/default/shellinabox belongs to the package (Ubuntu 26.04's has
+# no SHELLINABOX_ARGS line, and a package upgrade can replace it). Keep ExecStart in step with install/shellinabox.sh
+mkdir -p /etc/systemd/system/shellinabox.service.d
+cat > /etc/systemd/system/shellinabox.service.d/swizzin-nginx.conf << 'SIAB'
+[Service]
+ExecStart=
+ExecStart=/usr/bin/shellinaboxd -q --background=/var/run/shellinaboxd.pid -c /var/lib/shellinabox -p 4200 -u shellinabox -g shellinabox $SHELLINABOX_ARGS --localhost-only --disable-ssl
+SIAB
+systemctl daemon-reload
+
+function _in_shellinabox() {
+    local p=$$
+    while ((p > 1)); do
+        [[ $(ps -o comm= -p "$p") == shellinaboxd ]] && return 0
+        p=$(ps -o ppid= -p "$p" | tr -d ' ')
+        [[ -n $p ]] || return 1
+    done
+    return 1
+}
 
 if [[ $isactive == "active" ]]; then
-    systemctl restart shellinabox
+    if _in_shellinabox; then
+        # Restarting now would close the terminal box runs in, and stop it halfway: wait until box is done
+        systemd-run -q /bin/sh -c 'sleep 5; while pgrep -f "[s]wizzin/box" > /dev/null; do sleep 5; done; systemctl restart shellinabox'
+        echo_info "Shell in a Box restarts once box is done: this terminal will close, reload the page"
+    else
+        systemctl restart shellinabox
+    fi
 fi
