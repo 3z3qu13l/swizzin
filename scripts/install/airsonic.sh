@@ -31,6 +31,11 @@ airsonic_systemd() {
     wget https://raw.githubusercontent.com/airsonic/airsonic/master/contrib/airsonic.service -O /etc/systemd/system/airsonic.service >> "$log" 2>&1
     sed -i "s|/var/airsonic|$airsonicdir|g" /etc/systemd/system/airsonic.service
     sed -i 's|PORT=8080|PORT=8185|g' /etc/systemd/system/airsonic.service
+    if java8=$(java8_bin) && [[ -n $java8 ]]; then
+        sed -i "s|^ExecStart=/usr/bin/java|ExecStart=$java8|" /etc/systemd/system/airsonic.service
+    else
+        echo_warn "Java 8 not found: Airsonic does not start on a newer Java"
+    fi
 
     defconfdir="/etc/sysconfig"
     if [[ $distribution == "Debian" ]]; then

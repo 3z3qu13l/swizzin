@@ -335,11 +335,11 @@ function _prioritize_results() {
 function _install() {
     begin=$(date +"%s")
     if [[ -s /root/results ]]; then
-        bash /etc/swizzin/scripts/box install $(< /root/results) && rm /root/results
+        if bash /etc/swizzin/scripts/box install $(< /root/results); then rm /root/results; else install_failed=true; fi
         showTimer=true
     fi
     if [[ -s /root/results2 ]]; then
-        bash /etc/swizzin/scripts/box install $(< /root/results2) && rm /root/results2
+        if bash /etc/swizzin/scripts/box install $(< /root/results2); then rm /root/results2; else install_failed=true; fi
         showTimer=true
     fi
     termin=$(date +"%s")
@@ -366,7 +366,11 @@ function _post() {
     chmod 440 /etc/sudoers.d/secure_path /etc/sudoers.d/env_keep 2> /dev/null
 
     ring_the_bell
-    echo_success "Swizzin installation complete!"
+    if [[ $install_failed == true ]]; then
+        echo_warn "Swizzin is installed, but some apps are not: see the errors above, then box install <app> to retry"
+    else
+        echo_success "Swizzin installation complete!"
+    fi
     if [[ -f /install/.nginx.lock ]]; then
         echo_info "Seedbox can be accessed at https://${ip}"
         if [[ ! -f /install/.panel.lock ]]; then

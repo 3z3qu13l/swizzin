@@ -1,4 +1,11 @@
 #!/bin/bash
+# The java binary of the Java 8 that install_java8 installs. /usr/bin/java is the newest Java on the system, and
+# Airsonic (Spring 4) does not start on Java 17 or newer
+java8_bin() {
+    update-alternatives --list java 2> /dev/null | grep -m1 -E '/(temurin-8-jdk|adoptopenjdk-8-hotspot|java-8-openjdk)[^/]*/'
+}
+export -f java8_bin
+
 install_java8() {
     codename=$(_os_codename)
     distribution=$(_os_distro)

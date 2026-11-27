@@ -61,6 +61,9 @@ fi
 echo_progress_start "Starting Emby"
 systemctl restart emby-server > /dev/null 2>&1
 echo_progress_done
+#shellcheck source=sources/functions/emby
+. /etc/swizzin/sources/functions/emby
+emby_finish_wizard
 touch /install/.emby.lock
 echo_success "Emby installed"
 echo_info "Emby reads none of your folders yet. For each library folder, run: box media-access emby <folder>"

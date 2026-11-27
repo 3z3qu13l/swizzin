@@ -38,7 +38,24 @@ location ~ /netdata/(?<ndpath>.*) {
 }
 NET
 fi
-sed -i "s/# bind to = \*/bind to = 127.0.0.1/g" /etc/netdata/netdata.conf
+# Behind nginx netdata only answers on 127.0.0.1, or it shows the server's state to the network without a password.
+# Recent netdata.conf files are a short stub, without the "# bind to = *" line older ones had
+# a static netdata install (no package for the distribution) keeps its configuration under /opt/netdata
+conf=/etc/netdata/netdata.conf
+[[ -f $conf || ! -f /opt/netdata/etc/netdata/netdata.conf ]] || conf=/opt/netdata/etc/netdata/netdata.conf
+if [[ ! -f $conf ]]; then
+    echo_warn "netdata.conf not found: netdata may still answer the network on port 19999"
+    exit 1
+fi
+if ! grep -qE '^\s*bind to\s*=\s*127\.0\.0\.1\s*$' "$conf"; then
+    if grep -qE '^\s*bind to\s*=' "$conf"; then
+        sed -i -E 's/^(\s*)bind to\s*=.*/\1bind to = 127.0.0.1/' "$conf"
+    elif grep -q '^\[web\]' "$conf"; then
+        sed -i '/^\[web\]/a\    bind to = 127.0.0.1' "$conf"
+    else
+        printf '\n[web]\n    bind to = 127.0.0.1\n' >> "$conf"
+    fi
+fi
 if [[ $isactive == "active" ]]; then
     systemctl restart netdata
 fi

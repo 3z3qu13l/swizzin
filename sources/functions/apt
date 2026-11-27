@@ -117,12 +117,17 @@ export -f _apt_logcheck
 # runs for minutes, and apt-get update fails at once on a held lock (DPkg::Lock::Timeout, passed to the
 # apt-get calls that run dpkg, does not cover it)
 _apt_wait_locks() {
-    local i f held
+    local i f ino pid held
     for ((i = 0; i < 120; i++)); do
         held=
-        # one file per lsof: given several, it fails as soon as one of them is not open
+        # /proc/locks lists the locks held, by inode: no lsof needed (it may not be installed yet on a fresh
+        # server), and nothing that can hang on a dead network mount
         for f in /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock; do
-            if lsof -w "$f" > /dev/null 2>&1; then held=1; fi
+            ino=$(stat -c %i "$f" 2> /dev/null) || continue
+            # an inode number is only unique on one disk: check the locking process really has this file open
+            for pid in $(awk -v i="$ino" '$6 ~ ":" i "$" {print $5}' /proc/locks); do
+                if [[ $(readlink -f /proc/$pid/fd/* 2> /dev/null) == *"$f"* ]]; then held=1; fi
+            done
         done
         [[ -n $held ]] || return 0
         if ((i == 0)); then echo_info "Waiting for another apt or dpkg to finish"; fi
