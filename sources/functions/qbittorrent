@@ -381,6 +381,10 @@ function install_qt() {
 
 function install_qt_swizzin() {
     latest_qt_swizzin=$(github_latest_version swizzin/qt6_crossbuild)
+    [[ -n $latest_qt_swizzin ]] || {
+        echo_error "Could not find the latest qt6-swizzin release on GitHub. Setup will not proceed"
+        exit 1
+    }
     installed_qt_swizzin=$(dpkg-query --showformat='${Version}' --show qt6-swizzin 2> /dev/null)
     if [[ -z ${installed_qt_swizzin} ]] || dpkg --compare-versions ${installed_qt_swizzin} lt ${latest_qt_swizzin}; then
         echo_progress_start "Installing latest qt6-swizzin"
@@ -399,6 +403,10 @@ function install_qt_swizzin() {
 
 function install_cmake_swizzin() {
     latest_cmake_swizzin=$(github_latest_version swizzin/cmake_crossbuild)
+    [[ -n $latest_cmake_swizzin ]] || {
+        echo_error "Could not find the latest cmake-swizzin release on GitHub. Setup will not proceed"
+        exit 1
+    }
     installed_cmake_swizzin=$(dpkg-query --showformat='${Version}' --show cmake-swizzin 2> /dev/null)
     if [[ -z ${installed_cmake_swizzin} ]] || dpkg --compare-versions ${installed_cmake_swizzin} lt ${latest_cmake_swizzin//_/+}; then
         echo_progress_start "Installing latest cmake-swizzin"
@@ -417,6 +425,10 @@ function install_cmake_swizzin() {
 
 function install_zlib_ng() {
     latest_zlib_ng=$(github_latest_version swizzin/zlib-ng-crossbuild)
+    [[ -n $latest_zlib_ng ]] || {
+        echo_error "Could not find the latest zlib-ng release on GitHub. Setup will not proceed"
+        exit 1
+    }
     installed_zlib_ng=$(dpkg-query --showformat='${Version}' --show zlib-ng 2> /dev/null)
     if [[ -z ${installed_zlib_ng} ]] || dpkg --compare-versions ${installed_zlib_ng} lt ${latest_zlib_ng//_/+}; then
         echo_progress_start "Installing latest zlib-ng"

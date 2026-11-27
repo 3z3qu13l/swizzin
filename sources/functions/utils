@@ -151,6 +151,11 @@ function populate_var() {
 function github_latest_version() {
     # Argument expects the author/repo format
     # e.g. swizzin/swizzin
-    repo=$1
-    curl -fsSLI -o /dev/null -w %{url_effective} https://github.com/${repo}/releases/latest | grep -o '[^/]*$'
+    # Prints the tag releases/latest redirects to. Nothing, and a failure, when GitHub cannot be reached
+    # (curl then gives back the address it was asked, ending in "latest") or the repository has no release
+    # (it redirects to the release list).
+    local url
+    url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${1}/releases/latest") || return 1
+    [[ $url == */releases/tag/* ]] || return 1
+    echo "${url##*/}"
 }
