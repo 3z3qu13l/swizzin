@@ -8,6 +8,8 @@ systemctl -q stop jellyfin.service
 apt_remove --purge jellyfin jellyfin-ffmpeg
 #
 rm_if_exists /var/lib/jellyfin
+# system.xml there says the server was set up: with the database gone, a reinstall would refuse to start
+rm_if_exists /etc/jellyfin
 rm_if_exists /var/log/jellyfin
 rm_if_exists /var/cache/jellyfin
 rm_if_exists /usr/share/jellyfin/web

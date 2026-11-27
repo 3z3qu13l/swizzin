@@ -1,0 +1,37 @@
+#!/bin/bash
+# Jellyfin functions
+
+# /jellyfin in nginx has no password (Jellyfin has its own logins): until the first-run wizard is done, anyone who
+# reaches the server can create Jellyfin's admin. This finishes the wizard with the master's credentials. The
+# password goes to Jellyfin's API on 127.0.0.1 through stdin, never on a command line.
+function jellyfin_finish_wizard() {
+    local base api user pw i done=
+    # a stopped Jellyfin exposes nothing; the next box update finishes the wizard once it runs
+    systemctl -q is-active jellyfin || return 0
+    base=$(sed -n 's|.*<BaseUrl>\(.*\)</BaseUrl>.*|\1|p' /etc/jellyfin/network.xml 2> /dev/null)
+    api="https://127.0.0.1:8920${base}"
+    # the certificate is self-signed, and this only talks to 127.0.0.1
+    for ((i = 0; i < 60; i++)); do
+        done=$(curl -sfk --max-time 10 "$api/System/Info/Public" | jq -r '.StartupWizardCompleted' 2> /dev/null)
+        [[ -n $done ]] && break
+        sleep 2
+    done
+    [[ $done == true ]] && return 0
+    user=$(_get_master_username)
+    pw=$(_get_user_password "$user")
+    if [[ $done == false && -n $pw ]] &&
+        curl -sfk --max-time 10 -o /dev/null -H 'Content-Type: application/json' \
+            -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}' "$api/Startup/Configuration" &&
+        curl -sfk --max-time 10 -o /dev/null "$api/Startup/User" &&
+        printf '%s' "$pw" | jq -Rs --arg n "$user" '{Name: $n, Password: .}' |
+        curl -sfk --max-time 10 -o /dev/null -H 'Content-Type: application/json' --data @- "$api/Startup/User" &&
+        curl -sfk --max-time 10 -o /dev/null -H 'Content-Type: application/json' \
+            -d '{"EnableRemoteAccess":true,"EnableAutomaticPortMapping":false}' "$api/Startup/RemoteAccess" &&
+        curl -sfk --max-time 10 -o /dev/null -X POST "$api/Startup/Complete"; then
+        echo_info "Jellyfin's admin is ${user}, with the master password"
+        return 0
+    fi
+    echo_warn "Jellyfin's first-run wizard is still open: finish it now at /jellyfin, whoever does it first becomes Jellyfin's admin"
+    return 1
+}
+export -f jellyfin_finish_wizard

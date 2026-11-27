@@ -149,6 +149,13 @@ fi
 #
 # Restart the jellyfin service to make sure our changes take effect
 systemctl -q restart "jellyfin.service"
+#shellcheck source=sources/functions/jellyfin
+. /etc/swizzin/sources/functions/jellyfin
+if systemctl -q is-active jellyfin; then
+    jellyfin_finish_wizard
+else
+    echo_warn "Jellyfin is not running: once it is, run box update to close its first-run wizard"
+fi
 #
 # This file is created after installation to prevent reinstalling. You will need to remove the app first which deletes this file.
 touch /install/.jellyfin.lock

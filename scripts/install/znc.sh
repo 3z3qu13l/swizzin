@@ -48,11 +48,49 @@ ZNC
 systemctl enable -q znc
 echo_progress_done
 
-echo_warn "ZNC configuration will now run. Please answer the following prompts"
-sleep 5
-sudo -H -u znc znc --makeconf
-killall -u znc znc > /dev/null 2>&1
-sleep 1
+if [[ -t 0 ]]; then
+    echo_warn "ZNC configuration will now run. Please answer the following prompts"
+    sleep 5
+    sudo -H -u znc znc --makeconf
+    killall -u znc znc > /dev/null 2>&1
+    sleep 1
+else
+    # Nobody to answer --makeconf (unattended install, box run by a script): without a config ZNC does not start.
+    # Write one: an SSL listener on a free port, the master as admin with the master password (salted SHA-256)
+    echo_progress_start "Writing ZNC configuration"
+    #shellcheck source=sources/functions/utils
+    . /etc/swizzin/sources/functions/utils
+    znc_port=${ZNC_PORT:-$(port 10001 32001)}
+    znc_user=$(_get_master_username)
+    znc_salt=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c20)
+    znc_hash=$({ _get_user_password "$znc_user" | tr -d '\n' && printf '%s' "$znc_salt"; } | sha256sum | cut -d' ' -f1)
+    # the private key in znc.pem and the password hash: for the znc user only
+    (umask 077 && sudo -H -u znc mkdir -p /home/znc/.znc/configs && sudo -H -u znc znc --makepem >> "$log" 2>&1)
+    (umask 077 && sudo -H -u znc tee /home/znc/.znc/configs/znc.conf > /dev/null) << ZNCCONF
+Version = $(znc --version | grep -oP '^ZNC \K[0-9]+\.[0-9]+')
+LoadModule = webadmin
+<Listener l>
+    Port = ${znc_port}
+    IPv4 = true
+    IPv6 = true
+    SSL = true
+</Listener>
+<User ${znc_user}>
+    Admin = true
+    Nick = ${znc_user}
+    AltNick = ${znc_user}_
+    Ident = ${znc_user}
+    LoadModule = chansaver
+    LoadModule = controlpanel
+    <Pass password>
+        Method = SHA256
+        Hash = ${znc_hash}
+        Salt = ${znc_salt}
+    </Pass>
+</User>
+ZNCCONF
+    echo_progress_done "ZNC listens on port ${znc_port} (SSL), log in as ${znc_user} with the master password"
+fi
 
 # Check for LE cert, and copy it if available.
 if [[ -f /install/nginx.lock ]]; then
