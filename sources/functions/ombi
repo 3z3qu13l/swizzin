@@ -1,27 +1,17 @@
 #!/bin/bash
 
-function ombi_apt_source() {
-    if [[ $(_os_codename) == "trixie" ]]; then
-        # apt.ombi.app's key is bound with SHA1 signatures, which apt's verifier (sqv) rejects on trixie,
-        # so the repo cannot be verified. Pin it so it can only ever provide the ombi package.
-        echo "deb [trusted=yes] https://apt.ombi.app/master jessie main" > /etc/apt/sources.list.d/ombi.list
-        cat > /etc/apt/preferences.d/ombi << PIN
-Package: ombi
-Pin: origin apt.ombi.app
-Pin-Priority: 500
+# Debian 13 and later: apt.ombi.app's key is bound with SHA1 signatures, which their apt verifier (sqv)
+# refuses since 2026-02-01, so the repository cannot be verified. Ombi comes from its GitHub releases there.
+function ombi_from_github() {
+    [[ $(_os_distro) == debian && ! $(_os_codename) =~ ^(buster|bullseye|bookworm)$ ]]
+}
 
-Package: *
-Pin: origin apt.ombi.app
-Pin-Priority: -1
-PIN
-        echo_warn "Ombi's apt repository cannot be verified on Debian trixie (its signing key uses SHA1). It is restricted to the ombi package only."
-    else
-        apt_key_install https://apt.ombi.app/pub.key /usr/share/keyrings/ombi-archive-keyring.gpg || {
-            echo_error "The Ombi signing key could not be downloaded"
-            return 1
-        }
-        echo "deb [signed-by=/usr/share/keyrings/ombi-archive-keyring.gpg] https://apt.ombi.app/master jessie main" > /etc/apt/sources.list.d/ombi.list
-    fi
+function ombi_apt_source() {
+    apt_key_install https://apt.ombi.app/pub.key /usr/share/keyrings/ombi-archive-keyring.gpg || {
+        echo_error "The Ombi signing key could not be downloaded"
+        return 1
+    }
+    echo "deb [signed-by=/usr/share/keyrings/ombi-archive-keyring.gpg] https://apt.ombi.app/master jessie main" > /etc/apt/sources.list.d/ombi.list
 }
 
 # Ombi 4.53 moved ClientApp/dist/index.html to dist/browser/, but its postinst still chowns the old path and fails.
@@ -32,4 +22,125 @@ function ombi_index_link() {
         mkdir -p /opt/Ombi/ClientApp/dist
         ln -s browser/index.html "$index"
     fi
+}
+
+# What the apt package sets up besides /opt/Ombi: the ombi user, /etc/Ombi for its data, the service
+function ombi_github_service() {
+    adduser --system --disabled-password --disabled-login --home /var/empty --no-create-home --quiet --group ombi
+    if [[ ! -d /etc/Ombi ]]; then
+        mkdir -p /etc/Ombi
+        chown ombi:nogroup /etc/Ombi
+    fi
+    # not /etc/systemd/system/ombi.service: update/ombi.sh deletes that one
+    mkdir -p /usr/local/lib/systemd/system
+    cat > /usr/local/lib/systemd/system/ombi.service << UNIT
+[Unit]
+Description=Ombi - PMS Requests System
+After=network-online.target
+
+[Service]
+User=ombi
+Group=nogroup
+WorkingDirectory=/opt/Ombi/
+ExecStart=/opt/Ombi/Ombi --storage /etc/Ombi/
+Type=simple
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    # removing the apt package masks the unit
+    systemctl unmask -q ombi 2> /dev/null
+    systemctl daemon-reload
+}
+
+# Downloads and unpacks the latest release in $ombi_tmp/new, next to /opt/Ombi
+function _ombi_fetch() {
+    local arch version
+    case "$(_os_arch)" in
+        amd64) arch=x64 ;;
+        arm64) arch=arm64 ;;
+        armhf) arch=arm ;;
+        *)
+            echo_error "$(_os_arch) is not supported by Ombi"
+            return 1
+            ;;
+    esac
+    version=$(github_latest_version Ombi-app/Ombi)
+    if [[ -z $version ]]; then
+        echo_error "Could not find the latest Ombi release"
+        return 1
+    fi
+    echo_progress_start "Downloading Ombi ${version}"
+    ombi_tmp=$(mktemp -d /opt/Ombi.XXXXXX)
+    mkdir "$ombi_tmp/new"
+    if ! curl -fsSL "https://github.com/Ombi-app/Ombi/releases/download/${version}/linux-${arch}.tar.gz" -o "$ombi_tmp/ombi.tar.gz" >> "$log" 2>&1 ||
+        ! tar xzf "$ombi_tmp/ombi.tar.gz" -C "$ombi_tmp/new" >> "$log" 2>&1 || [[ ! -x $ombi_tmp/new/Ombi ]]; then
+        rm -rf "$ombi_tmp"
+        echo_error "Could not download Ombi"
+        return 1
+    fi
+    rm -f "$ombi_tmp/ombi.tar.gz"
+    # its version.json lags behind the release
+    echo "${version#v}" > "$ombi_tmp/new/.swizzin-version"
+    chown -R root: "$ombi_tmp/new"
+    chmod 755 "$ombi_tmp/new"
+    # Ombi writes the base URL into its index.html when it starts
+    chown ombi:nogroup "$ombi_tmp/new/ClientApp/dist/browser/index.html"
+    echo_progress_done
+}
+
+# Puts the release of $ombi_tmp/new in /opt/Ombi, the old one back if a rename fails. Ombi is stopped.
+function _ombi_swap() {
+    local old=
+    if [[ -e /opt/Ombi ]]; then
+        old=$ombi_tmp/old
+        mv /opt/Ombi "$old" || return 1
+    fi
+    if ! mv "$ombi_tmp/new" /opt/Ombi; then
+        [[ -n $old ]] && mv "$old" /opt/Ombi
+        return 1
+    fi
+    rm -rf "$ombi_tmp"
+}
+
+# Installs or upgrades Ombi from its latest GitHub release
+function ombi_github_upgrade() {
+    local active=
+    _ombi_fetch || return 1
+    systemctl -q is-active ombi && active=1 && systemctl stop ombi
+    if ! _ombi_swap; then
+        rm -rf "$ombi_tmp"
+        [[ -n $active ]] && systemctl start ombi
+        echo_error "Could not install the new Ombi, the old one is still there"
+        return 1
+    fi
+    [[ -n $active ]] && systemctl start ombi
+    return 0
+}
+
+# A server that has Ombi from apt moves to the GitHub release. /etc/Ombi, its data, stays as it is.
+function ombi_migrate_to_github() {
+    local active=
+    # downloaded first: a failure leaves the apt install untouched
+    _ombi_fetch || return 1
+    systemctl -q is-active ombi && active=1
+    systemctl stop ombi
+    if ! dpkg -r ombi >> "$log" 2>&1; then
+        rm -rf "$ombi_tmp"
+        [[ -n $active ]] && systemctl start ombi
+        echo_error "Could not remove the apt package of Ombi (see $log)"
+        return 1
+    fi
+    ombi_github_service
+    if ! _ombi_swap; then
+        echo_error "Could not install Ombi from GitHub: its release is in $ombi_tmp/new, see $log"
+        return 1
+    fi
+    rm -f /etc/apt/sources.list.d/ombi.list /etc/apt/preferences.d/ombi /usr/share/keyrings/ombi-archive-keyring.gpg
+    systemctl enable -q ombi >> "$log" 2>&1
+    [[ -n $active ]] && systemctl start ombi
+    return 0
 }
