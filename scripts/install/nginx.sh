@@ -161,8 +161,8 @@ mkdir -p /etc/nginx/apps/
 cat > /etc/nginx/snippets/ssl-params.conf << SSC
 ssl_protocols TLSv1.2 TLSv1.3;
 ssl_prefer_server_ciphers on;
-ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:EECDH+AESGCM:EDH+AESGCM;
-ssl_ecdh_curve secp384r1;
+ssl_ciphers ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
+ssl_ecdh_curve auto;
 ssl_session_cache shared:SSL:10m;
 ssl_session_tickets off;
 ssl_stapling on;
