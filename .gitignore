@@ -2,5 +2,9 @@
 .test.lock
 dev.env
 
+# Claude Code: review agent memory and temporary worktrees stay local
+.claude/agent-memory/
+.claude/worktrees/
+
 # Ignore JetBrains IDE's project settings folder
 .idea/**
