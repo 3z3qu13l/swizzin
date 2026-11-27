@@ -4,6 +4,19 @@
 kavita_dir=/opt/kavita
 kavita_settings=$kavita_dir/config/appsettings.json
 
+# Puts the old release back, with its config folder, after a failed swap. Nothing is deleted.
+function _kavita_rollback() {
+    local tmp=$1 active=$2
+    [[ -d $tmp/Kavita/config && ! -d $tmp/old/config ]] && mv "$tmp/Kavita/config" "$tmp/old/config"
+    if [[ ! -e $kavita_dir ]] && mv "$tmp/old" "$kavita_dir"; then
+        [[ -n $active ]] && systemctl start kavita
+        echo_error "Could not install the new Kavita: the old one is back"
+    else
+        echo_error "Could not install the new Kavita: the old one and its data are in $tmp/old"
+    fi
+    exit 1
+}
+
 # Downloads the latest Kavita release into $kavita_dir, keeping its config folder
 function kavita_download_latest() {
     local arch version tmp old= active=
@@ -41,22 +54,20 @@ function kavita_download_latest() {
     systemctl -q is-active kavita && active=1 && systemctl stop kavita
     if [[ -d $kavita_dir ]]; then
         old=$tmp/old
-        mv "$kavita_dir" "$old" || {
+        if ! mv "$kavita_dir" "$old"; then
+            rm -rf "$tmp"
+            [[ -n $active ]] && systemctl start kavita
             echo_error "Could not move the old Kavita aside"
             exit 1
-        }
-        # the database, covers and settings of the old release stay
-        if [[ -d $old/config ]]; then
-            cp -n "$tmp/Kavita/config/appsettings-init.json" "$old/config/" 2> /dev/null
-            rm -rf "$tmp/Kavita/config"
-            mv "$old/config" "$tmp/Kavita/config"
         fi
     fi
-    if ! mv "$tmp/Kavita" "$kavita_dir"; then
-        [[ -n $old ]] && mv "$old" "$kavita_dir"
-        echo_error "Could not install the new Kavita, the old one is back in $kavita_dir"
-        exit 1
+    # the database, covers and settings of the old release move over
+    if [[ -n $old && -d $old/config ]]; then
+        cp -n "$tmp/Kavita/config/appsettings-init.json" "$old/config/" 2> /dev/null
+        rm -rf "$tmp/Kavita/config"
+        mv "$old/config" "$tmp/Kavita/config" || _kavita_rollback "$tmp" "$active"
     fi
+    mv "$tmp/Kavita" "$kavita_dir" || _kavita_rollback "$tmp" "$active"
     rm -rf "$tmp"
     chown -R "$(_get_master_username):" "$kavita_dir"
     # its database holds the accounts; the archive ships this folder open to all
@@ -121,6 +132,6 @@ function kavita_create_admin() {
         _kavita_open
         return 0
     fi
-    echo_warn "Kavita has no account yet (see $log), so it stays closed: run box upgrade kavita to retry"
+    echo_warn "Kavita has no account yet (see $log), so it stays closed: run box upgrade kavita to retry, or register at /kavita/ then run it to open Kavita"
     return 1
 }
