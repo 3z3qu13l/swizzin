@@ -1,5 +1,14 @@
 #!/bin/bash
 
+# Installs made before the wizard was finished at install time left it open to whoever reaches the server first
+if [[ -f /install/.emby.lock ]] && ! grep -q '<IsStartupWizardCompleted>true</IsStartupWizardCompleted>' /var/lib/emby/config/system.xml 2> /dev/null &&
+    systemctl -q is-active emby-server; then
+    #shellcheck source=sources/functions/emby
+    . /etc/swizzin/sources/functions/emby
+    echo_progress_start "Finishing Emby's first-run wizard"
+    if emby_finish_wizard; then echo_progress_done; else echo_progress_done "Not finished"; fi
+fi
+
 conf=/etc/nginx/apps/emby.conf
 # without these headers the Emby web client's websocket (live updates, remote control) is refused
 if [[ -f $conf ]] && ! grep -q 'http_upgrade' "$conf"; then

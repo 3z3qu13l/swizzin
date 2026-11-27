@@ -1,0 +1,32 @@
+#!/bin/bash
+# Emby functions
+
+# Emby listens on every address and has no setting to change it, and /emby/ in nginx has no password: until its
+# first-run wizard is done, anyone who reaches the server can create Emby's admin. This finishes the wizard with
+# the master's credentials. The password goes to Emby's API on 127.0.0.1 through stdin, never on a command line.
+function emby_finish_wizard() {
+    local api=http://127.0.0.1:8096/emby conf=/var/lib/emby/config/system.xml user pw i
+    # a stopped Emby exposes nothing; the next box update finishes the wizard once it runs
+    systemctl -q is-active emby-server || return 0
+    # on a first start system.xml is only written once Emby is up
+    for ((i = 0; i < 60; i++)); do
+        curl -sf -o /dev/null "$api/System/Info/Public" && break
+        sleep 2
+    done
+    grep -q '<IsStartupWizardCompleted>true</IsStartupWizardCompleted>' "$conf" 2> /dev/null && return 0
+    user=$(_get_master_username)
+    pw=$(_get_user_password "$user")
+    if [[ -n $pw ]] &&
+        curl -sf -o /dev/null -H 'Content-Type: application/json' \
+            -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}' "$api/Startup/Configuration" &&
+        curl -sf -o /dev/null "$api/Startup/User" &&
+        printf '%s' "$pw" | jq -Rs --arg n "$user" '{Name: $n, Password: .}' |
+        curl -sf -o /dev/null -H 'Content-Type: application/json' --data @- "$api/Startup/User" &&
+        curl -sf -o /dev/null -X POST "$api/Startup/Complete"; then
+        echo_info "Emby's admin is ${user}, with the master password"
+        return 0
+    fi
+    echo_warn "Emby's first-run wizard is still open: finish it now at /emby/, whoever does it first becomes Emby's admin"
+    return 1
+}
+export -f emby_finish_wizard

@@ -23,7 +23,7 @@ User=root
 Type=forking
 EnvironmentFile=/etc/default/shellinabox
 ExecStart=/usr/bin/shellinaboxd -q --background=/var/run/shellinaboxd.pid -c /var/lib/shellinabox -p 4200 -u shellinabox -g shellinabox \$SHELLINABOX_ARGS
-ExecReload=/bin/kill -HUP $MAINPID
+ExecReload=/bin/kill -HUP \$MAINPID
 KillMode=process
 Restart=on-abort
 
@@ -42,7 +42,11 @@ if [[ -f /install/.nginx.lock ]]; then
     systemctl reload nginx
     echo_progress_done
 else
-    echo_info "Shellinabox will run on port 4200"
+    if grep -q '^SHELLINABOX_ARGS=".*--localhost-only' /etc/default/shellinabox 2> /dev/null; then
+        echo_info "Shellinabox only answers this server, on 127.0.0.1:4200: remove --localhost-only from SHELLINABOX_ARGS in /etc/default/shellinabox to reach it on port 4200"
+    else
+        echo_info "Shellinabox will run on port 4200"
+    fi
 fi
 
 echo_success "Shellinabox installed"
