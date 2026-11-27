@@ -493,9 +493,9 @@ function _dconf() {
         DPORT=$((n % 59000 + 10024))
         DWSALT=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1)
         localpass=$(tr -dc 'a-f0-9' < /dev/urandom | fold -w 40 | head -n 1)
-        if $(command -v python2.7 > /dev/null 2>&1); then
+        if command -v python2.7 > /dev/null 2>&1; then
             pythonversion=python2.7
-        elif $(command -v python3 > /dev/null 2>&1); then
+        elif command -v python3 > /dev/null 2>&1; then
             pythonversion=python3
         fi
         DWP=$(printf %s "$pass" | ${pythonversion} ${local_packages}/deluge.Userpass.py "${DWSALT}")
