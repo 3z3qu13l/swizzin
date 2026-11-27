@@ -70,6 +70,11 @@ if [[ -f /etc/systemd/system/shellinabox.service.d/swizzin-nginx.conf ]]; then
     if systemctl -q is-active shellinabox; then systemctl restart shellinabox; fi
 fi
 
+# transfer.sh stays on 127.0.0.1: without nginx, nothing would ask for the password on uploads
+if [[ -f /install/.transfersh.lock ]]; then
+    echo_warn "transfer.sh cannot be reached without nginx: install nginx again, or remove transfer.sh"
+fi
+
 # Kavita and Komga back on their own port at the root, open to the network once they have an admin
 if [[ -f /install/.kavita.lock ]]; then
     #shellcheck source=sources/functions/kavita

@@ -9,6 +9,7 @@ systemctl disable -q --now transfersh >> "$log" 2>&1
 rm_if_exists /etc/systemd/system/transfersh.service
 systemctl daemon-reload
 rm_if_exists /opt/transfersh
+rm_if_exists /etc/transfersh.env
 if [[ -f /install/.nginx.lock ]]; then
     rm_if_exists /etc/nginx/apps/transfersh.conf
     systemctl reload nginx
