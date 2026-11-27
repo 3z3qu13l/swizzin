@@ -1,0 +1,162 @@
+#!/bin/bash
+# Komga helpers
+
+komga_dir=/opt/komga
+
+function _komga_config() {
+    echo "/home/$(_get_master_username)/.config/komga"
+}
+
+# The Java 25 that Komga runs on. /usr/bin/java is the distribution's default, older on Debian 13.
+function komga_java() {
+    update-alternatives --list java 2> /dev/null | grep -m1 '/java-25-openjdk'
+}
+
+# Java 25 from the distribution, and the image libraries Komga loads to read WebP, HEIF and JPEG XL
+# (it looks for the unversioned .so the -dev packages bring)
+function komga_dependencies() {
+    if [[ $(apt-cache policy openjdk-25-jre-headless 2> /dev/null | awk '/Candidate:/ { print $2 }') =~ ^(|\(none\))$ ]]; then
+        echo_error "Komga needs Java 25, which $(_os_codename) on $(_os_arch) does not have"
+        exit 1
+    fi
+    apt_install openjdk-25-jre-headless libwebp-dev libheif-dev libjxl-dev
+    if [[ -z $(komga_java) ]]; then
+        echo_error "Java 25 is not installed"
+        exit 1
+    fi
+}
+
+# Downloads the latest Komga release to $komga_dir/komga.jar, checked against its published sha256
+function komga_download_latest() {
+    local version tmp sum active=
+    version=$(github_latest_version gotson/komga)
+    if [[ -z $version ]]; then
+        echo_error "Could not find the latest Komga release"
+        exit 1
+    fi
+    echo_progress_start "Downloading Komga ${version}"
+    mkdir -p "$komga_dir"
+    tmp=$(mktemp "$komga_dir/komga.jar.XXXXXX")
+    sum=$(curl -fsSL "https://github.com/gotson/komga/releases/download/${version}/checksums_sha256.txt" 2>> "$log" |
+        awk -v f="komga-${version}.jar" '$2 == f { print $1 }')
+    if [[ -z $sum ]] || ! curl -fsSL "https://github.com/gotson/komga/releases/download/${version}/komga-${version}.jar" -o "$tmp" >> "$log" 2>&1 ||
+        ! echo "${sum}  ${tmp}" | sha256sum -c --status; then
+        rm -f "$tmp"
+        echo_error "Could not download Komga"
+        exit 1
+    fi
+    chmod 644 "$tmp"
+    local db old= dbs=("$(_komga_config)"/database.sqlite{,-wal,-shm})
+    systemctl -q is-active komga && active=1 && systemctl stop komga
+    # a release that does not start goes back, with the database it may have migrated (one way only)
+    if [[ -f $komga_dir/komga.jar ]]; then
+        old=1
+        cp -p "$komga_dir/komga.jar" "$komga_dir/komga.jar.old"
+        cp -p "$komga_dir/.swizzin-version" "$komga_dir/.swizzin-version.old" 2> /dev/null
+        for db in "${dbs[@]}"; do
+            rm -f "$db.swizzin-bak"
+            [[ -f $db ]] && cp -p "$db" "$db.swizzin-bak"
+        done
+    fi
+    mv "$tmp" "$komga_dir/komga.jar"
+    echo "$version" > "$komga_dir/.swizzin-version"
+    echo_progress_done
+    if [[ -n $active ]]; then
+        systemctl start komga
+        if [[ -n $old ]] && ! _komga_wait; then
+            systemctl stop komga
+            mv "$komga_dir/komga.jar.old" "$komga_dir/komga.jar"
+            mv "$komga_dir/.swizzin-version.old" "$komga_dir/.swizzin-version" 2> /dev/null
+            for db in "${dbs[@]}"; do
+                rm -f "$db"
+                [[ -f $db.swizzin-bak ]] && mv "$db.swizzin-bak" "$db"
+            done
+            systemctl start komga
+            echo_error "Komga ${version} did not start: the previous release and its database are back"
+            exit 1
+        fi
+    fi
+    rm -f "$komga_dir/komga.jar.old" "$komga_dir/.swizzin-version.old"
+    for db in "${dbs[@]}"; do rm -f "$db.swizzin-bak"; done
+    return 0
+}
+
+# Waits for Komga to answer, up to 5 minutes: its first start migrates the database
+function _komga_wait() {
+    local i api
+    api=$(_komga_api)
+    for ((i = 0; i < 150; i++)); do
+        curl -sf --max-time 10 -o /dev/null "$api/api/v1/claim" && return 0
+        sleep 2
+    done
+    return 1
+}
+
+# The base of Komga's API on this server
+function _komga_api() {
+    local config port base
+    config=$(_komga_config)/application.yml
+    port=$(sed -n 's/^  port: \([0-9]*\)$/\1/p' "$config")
+    base=$(sed -n 's/^    context-path: \(.*\)$/\1/p' "$config")
+    echo "http://127.0.0.1:${port}${base%/}"
+}
+
+# Komga stays on 127.0.0.1, or behind nginx's password, while it is unclaimed: whoever claims it
+# first becomes its admin. Opened once it is claimed.
+function _komga_open() {
+    local config
+    config=$(_komga_config)/application.yml
+    if [[ -f /install/.nginx.lock && -f /etc/nginx/apps/komga.conf ]]; then
+        if ! grep -q 'auth_basic off;' /etc/nginx/apps/komga.conf; then
+            sed -i 's|auth_basic "[^"]*"; auth_basic_user_file [^;]*;|auth_basic off;|' /etc/nginx/apps/komga.conf
+            systemctl reload nginx
+        fi
+    elif grep -q '^  address: 127.0.0.1$' "$config"; then
+        systemctl stop komga
+        sed -i 's|^  address: 127.0.0.1$|  address: 0.0.0.0|' "$config"
+        systemctl start komga
+    fi
+}
+
+# The login of the master in Komga, which wants an email address
+function komga_login() {
+    echo "$(_get_master_username)@swizzin.local"
+}
+
+# Claims Komga for the master, while it is unclaimed, then opens it
+function komga_claim() {
+    local api pw i claimed=
+    systemctl -q is-active komga || return 0
+    api=$(_komga_api)
+    for ((i = 0; i < 150; i++)); do
+        claimed=$(curl -sf --max-time 10 "$api/api/v1/claim" 2> /dev/null | jq -r '.isClaimed' 2> /dev/null)
+        [[ -n $claimed ]] && break
+        sleep 2
+    done
+    if [[ $claimed == false ]]; then
+        pw=$(_get_user_password "$(_get_master_username)")
+        # Komga reads headers as Latin-1 but checks logins as UTF-8: an accented password would never log in
+        if LC_ALL=C grep -q '[^ -~]' <<< "$pw"; then
+            echo "Komga cannot take a password with characters outside ASCII through its claim" >> "$log"
+            pw=
+        fi
+        # the password goes in a header: curl reads it from stdin, not from its command line,
+        # quoted for curl's config syntax
+        pw=${pw//\\/\\\\}
+        pw=${pw//\"/\\\"}
+        if [[ -n $pw ]] &&
+            printf 'header = "X-Komga-Email: %s"\nheader = "X-Komga-Password: %s"\n' "$(komga_login)" "$pw" |
+            curl -sf --max-time 10 -o /dev/null -X POST -K - "$api/api/v1/claim"; then
+            echo_info "Komga's admin is $(komga_login), with the master password"
+            claimed=true
+        fi
+    fi
+    if [[ $claimed == true ]]; then
+        # read by the nginx script, which can run before Komga is up
+        touch "$(_komga_config)/.swizzin-open"
+        _komga_open
+        return 0
+    fi
+    echo_warn "Komga is not claimed yet (see $log), so it stays closed: run box upgrade komga to retry, or claim it at /komga/ then run it to open Komga"
+    return 1
+}

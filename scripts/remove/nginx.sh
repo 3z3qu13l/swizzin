@@ -70,4 +70,25 @@ if [[ -f /etc/systemd/system/shellinabox.service.d/swizzin-nginx.conf ]]; then
     if systemctl -q is-active shellinabox; then systemctl restart shellinabox; fi
 fi
 
+# Kavita and Komga back on their own port at the root, open to the network once they have an admin
+if [[ -f /install/.kavita.lock ]]; then
+    #shellcheck source=sources/functions/kavita
+    . /etc/swizzin/sources/functions/kavita
+    ip=127.0.0.1
+    [[ -f $kavita_dir/config/.swizzin-open ]] && ip=""
+    systemctl stop kavita
+    _kavita_set ".IpAddresses = \"$ip\" | .BaseUrl = \"/\""
+    systemctl start kavita
+fi
+if [[ -f /install/.komga.lock ]]; then
+    #shellcheck source=sources/functions/komga
+    . /etc/swizzin/sources/functions/komga
+    config=$(_komga_config)
+    ip=127.0.0.1
+    [[ -f $config/.swizzin-open ]] && ip=0.0.0.0
+    systemctl stop komga
+    sed -i -e "s|^  address: .*|  address: $ip|" -e 's|^    context-path: .*|    context-path: /|' "$config/application.yml"
+    systemctl start komga
+fi
+
 rm /install/.nginx.lock
