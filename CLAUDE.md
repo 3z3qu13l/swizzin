@@ -6,4 +6,4 @@ Dans ce dépôt, l'agent de review est **`swizzin-critic`** (`.claude/agents/swi
 
 ## Pull requests
 
-Titre de PR **en anglais**, au format des commits (`fix(app): …`, `feat: …`), comme les messages de commit. Le corps de la PR reste en français.
+Titre **et description** de PR **en anglais**, comme les messages de commit. Le titre suit le format des commits (`fix(app): …`, `feat: …`).
