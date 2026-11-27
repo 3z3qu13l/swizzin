@@ -1,0 +1,137 @@
+#!/bin/bash
+# Kavita helpers
+
+kavita_dir=/opt/kavita
+kavita_settings=$kavita_dir/config/appsettings.json
+
+# Puts the old release back, with its config folder, after a failed swap. Nothing is deleted.
+function _kavita_rollback() {
+    local tmp=$1 active=$2
+    [[ -d $tmp/Kavita/config && ! -d $tmp/old/config ]] && mv "$tmp/Kavita/config" "$tmp/old/config"
+    if [[ ! -e $kavita_dir ]] && mv "$tmp/old" "$kavita_dir"; then
+        [[ -n $active ]] && systemctl start kavita
+        echo_error "Could not install the new Kavita: the old one is back"
+    else
+        echo_error "Could not install the new Kavita: the old one and its data are in $tmp/old"
+    fi
+    exit 1
+}
+
+# Downloads the latest Kavita release into $kavita_dir, keeping its config folder
+function kavita_download_latest() {
+    local arch version tmp old= active=
+    case "$(_os_arch)" in
+        amd64) arch=x64 ;;
+        arm64) arch=arm64 ;;
+        armhf) arch=arm ;;
+        *)
+            echo_error "$(_os_arch) is not supported by Kavita"
+            exit 1
+            ;;
+    esac
+    version=$(github_latest_version Kareadita/Kavita)
+    if [[ -z $version ]]; then
+        echo_error "Could not find the latest Kavita release"
+        exit 1
+    fi
+
+    echo_progress_start "Downloading Kavita ${version}"
+    # next to $kavita_dir: the swap below renames, it copies nothing (covers and backups take gigabytes)
+    tmp=$(mktemp -d "${kavita_dir}.XXXXXX")
+    if ! curl -fsSL "https://github.com/Kareadita/Kavita/releases/download/${version}/kavita-linux-${arch}.tar.gz" -o "$tmp/kavita.tar.gz" >> "$log" 2>&1 ||
+        ! tar xzf "$tmp/kavita.tar.gz" -C "$tmp" >> "$log" 2>&1 || [[ ! -f $tmp/Kavita/Kavita ]]; then
+        rm -rf "$tmp"
+        echo_error "Could not download Kavita"
+        exit 1
+    fi
+    rm -f "$tmp/kavita.tar.gz"
+    # the archive is built without the exec bit
+    chmod 755 "$tmp/Kavita/Kavita"
+    echo "${version#v}" > "$tmp/Kavita/.swizzin-version"
+    echo_progress_done
+
+    # stopped only now, so a failed download leaves it running
+    systemctl -q is-active kavita && active=1 && systemctl stop kavita
+    if [[ -d $kavita_dir ]]; then
+        old=$tmp/old
+        if ! mv "$kavita_dir" "$old"; then
+            rm -rf "$tmp"
+            [[ -n $active ]] && systemctl start kavita
+            echo_error "Could not move the old Kavita aside"
+            exit 1
+        fi
+    fi
+    # the database, covers and settings of the old release move over
+    if [[ -n $old && -d $old/config ]]; then
+        cp -n "$tmp/Kavita/config/appsettings-init.json" "$old/config/" 2> /dev/null
+        rm -rf "$tmp/Kavita/config"
+        mv "$old/config" "$tmp/Kavita/config" || _kavita_rollback "$tmp" "$active"
+    fi
+    mv "$tmp/Kavita" "$kavita_dir" || _kavita_rollback "$tmp" "$active"
+    rm -rf "$tmp"
+    chown -R "$(_get_master_username):" "$kavita_dir"
+    # its database holds the accounts; the archive ships this folder open to all
+    chmod 700 "$kavita_dir/config"
+    [[ -n $active ]] && systemctl start kavita
+    return 0
+}
+
+# The base of Kavita's API on this server
+function _kavita_api() {
+    local port base
+    port=$(jq -r '.Port' "$kavita_settings" 2> /dev/null)
+    base=$(jq -r '.BaseUrl' "$kavita_settings" 2> /dev/null)
+    echo "http://127.0.0.1:${port}${base%/}"
+}
+
+function _kavita_set() {
+    local tmp
+    tmp=$(mktemp "$kavita_settings.XXXXXX")
+    jq "$1" "$kavita_settings" > "$tmp" &&
+        chown --reference="$kavita_settings" "$tmp" && chmod 600 "$tmp" && mv "$tmp" "$kavita_settings"
+}
+
+# Kavita stays on 127.0.0.1, or behind nginx's password, while it has no account: whoever registers
+# first becomes its admin. Opened once it has one.
+function _kavita_open() {
+    if [[ -f /install/.nginx.lock && -f /etc/nginx/apps/kavita.conf ]]; then
+        if ! grep -q 'auth_basic off;' /etc/nginx/apps/kavita.conf; then
+            sed -i 's|auth_basic "[^"]*"; auth_basic_user_file [^;]*;|auth_basic off;|' /etc/nginx/apps/kavita.conf
+            systemctl reload nginx
+        fi
+    elif [[ $(jq -r '.IpAddresses' "$kavita_settings") == 127.0.0.1 ]]; then
+        systemctl stop kavita
+        _kavita_set '.IpAddresses = ""'
+        systemctl start kavita
+    fi
+}
+
+# Makes the master Kavita's admin, while Kavita has no account, then opens it
+function kavita_create_admin() {
+    local api user pw i exists=
+    systemctl -q is-active kavita || return 0
+    api=$(_kavita_api)
+    # the first start migrates its database: minutes on a small ARM board
+    for ((i = 0; i < 150; i++)); do
+        exists=$(curl -sf --max-time 10 "$api/api/admin/exists" 2> /dev/null)
+        [[ -n $exists ]] && break
+        sleep 2
+    done
+    if [[ $exists == false ]]; then
+        user=$(_get_master_username)
+        pw=$(_get_user_password "$user")
+        if [[ -n $pw ]] && printf '%s' "$pw" | jq -Rs --arg n "$user" '{username: $n, password: .}' |
+            curl -sf --max-time 10 -o /dev/null -H 'Content-Type: application/json' --data @- "$api/api/account/register"; then
+            echo_info "Kavita's admin is ${user}, with the master password"
+            exists=true
+        fi
+    fi
+    if [[ $exists == true ]]; then
+        # read by the nginx script, which can run before Kavita is up
+        touch "$kavita_dir/config/.swizzin-open"
+        _kavita_open
+        return 0
+    fi
+    echo_warn "Kavita has no account yet (see $log), so it stays closed: run box upgrade kavita to retry, or register at /kavita/ then run it to open Kavita"
+    return 1
+}

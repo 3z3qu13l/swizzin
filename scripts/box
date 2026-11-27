@@ -560,9 +560,22 @@ function _chpasswd() {
     mkdir -p /etc/htpasswd.d/
     (umask 077 && htpasswd -i -c /etc/htpasswd.d/htpasswd."${user}" "$user" <<< "$pass" >> $log 2>&1)
     _htpasswd_perms /etc/htpasswd /etc/htpasswd.d/htpasswd."${user}"
-    for app in autobrr shinkro deluge filebrowser lounge netronome organizr qbittorrent qui transmission; do
+    for app in autobrr shinkro deluge filebrowser filebrowserquantum kavita lounge netronome organizr qbittorrent qui transmission; do
         if [[ -f /install/.${app}.lock ]]; then
             case $app in
+                kavita)
+                    [[ $user == "$master" ]] && echo_warn "Change the Kavita password in Kavita's settings too"
+                    ;;
+                filebrowserquantum)
+                    # only the master has an account; the server holds its database
+                    if [[ $user == "$master" ]]; then
+                        . /etc/swizzin/sources/functions/filebrowserquantum
+                        fbqactive=$(systemctl is-active filebrowserquantum)
+                        systemctl stop filebrowserquantum >> $log 2>&1
+                        fbq_set_password "$user" "$pass" || echo_warn "FileBrowser Quantum refused the password (see $log)"
+                        [[ $fbqactive == active ]] && systemctl start filebrowserquantum >> $log 2>&1
+                    fi
+                    ;;
                 filebrowser)
                     # Only the master has File Browser. Other users may run this through sudo and own their
                     # home, so nothing under it is trusted, and the CLI never runs as root.
