@@ -111,6 +111,7 @@ function _cli() {
                 bash /usr/local/bin/swizzin/install/$app.sh || failed+=("$app")
             else
                 echo_warn "Package $app not found"
+                [[ $app == airsonic ]] && echo_info "Airsonic is archived upstream since 2021: navidrome serves the same Subsonic apps"
                 failed+=("$app")
             fi
         fi
@@ -560,11 +561,11 @@ function _chpasswd() {
     mkdir -p /etc/htpasswd.d/
     (umask 077 && htpasswd -i -c /etc/htpasswd.d/htpasswd."${user}" "$user" <<< "$pass" >> $log 2>&1)
     _htpasswd_perms /etc/htpasswd /etc/htpasswd.d/htpasswd."${user}"
-    for app in autobrr shinkro deluge filebrowser filebrowserquantum kavita lounge netronome organizr qbittorrent qui transmission; do
+    for app in autobrr shinkro deluge filebrowser filebrowserquantum kavita komga lounge netronome organizr qbittorrent qui transmission; do
         if [[ -f /install/.${app}.lock ]]; then
             case $app in
-                kavita)
-                    [[ $user == "$master" ]] && echo_warn "Change the Kavita password in Kavita's settings too"
+                kavita | komga)
+                    [[ $user == "$master" ]] && echo_warn "Change the ${app^} password in ${app^}'s settings too"
                     ;;
                 filebrowserquantum)
                     # only the master has an account; the server holds its database
