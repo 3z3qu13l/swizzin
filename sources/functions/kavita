@@ -1,0 +1,79 @@
+#!/bin/bash
+# Kavita helpers
+
+kavita_dir=/opt/kavita
+
+# Downloads the latest Kavita release into $kavita_dir, keeping its config folder
+function kavita_download_latest() {
+    local arch version tmp
+    case "$(_os_arch)" in
+        amd64) arch=x64 ;;
+        arm64) arch=arm64 ;;
+        armhf) arch=arm ;;
+        *)
+            echo_error "$(_os_arch) is not supported by Kavita"
+            exit 1
+            ;;
+    esac
+    version=$(github_latest_version Kareadita/Kavita)
+    if [[ -z $version ]]; then
+        echo_error "Could not find the latest Kavita release"
+        exit 1
+    fi
+
+    echo_progress_start "Downloading Kavita ${version}"
+    tmp=$(mktemp -d)
+    if ! curl -fsSL "https://github.com/Kareadita/Kavita/releases/download/${version}/kavita-linux-${arch}.tar.gz" -o "$tmp/kavita.tar.gz" >> "$log" 2>&1 ||
+        ! tar xzf "$tmp/kavita.tar.gz" -C "$tmp" >> "$log" 2>&1 || [[ ! -f $tmp/Kavita/Kavita ]]; then
+        rm -rf "$tmp"
+        echo_error "Could not download Kavita"
+        exit 1
+    fi
+    echo_progress_done
+
+    # stopped only now, so a failed download leaves it running
+    local active=
+    systemctl -q is-active kavita && active=1 && systemctl stop kavita
+    # the files of the old release go, its database and settings stay
+    [[ -d $kavita_dir/config ]] && cp -a "$kavita_dir/config/." "$tmp/Kavita/config/"
+    rm -rf "$kavita_dir"
+    mv "$tmp/Kavita" "$kavita_dir"
+    rm -rf "$tmp"
+    # the archive is built without the exec bit
+    chmod 755 "$kavita_dir/Kavita"
+    echo "${version#v}" > "$kavita_dir/.swizzin-version"
+    chown -R "$(_get_master_username):" "$kavita_dir"
+    [[ -n $active ]] && systemctl start kavita
+    return 0
+}
+
+# The base of Kavita's API on this server
+function _kavita_api() {
+    local port base
+    port=$(jq -r '.Port' "$kavita_dir/config/appsettings.json" 2> /dev/null)
+    base=$(jq -r '.BaseUrl' "$kavita_dir/config/appsettings.json" 2> /dev/null)
+    echo "http://127.0.0.1:${port:-5000}${base%/}"
+}
+
+# Makes the master Kavita's admin, while Kavita has no account: the first one to register is admin
+function kavita_create_admin() {
+    local api user pw i exists=
+    systemctl -q is-active kavita || return 0
+    api=$(_kavita_api)
+    for ((i = 0; i < 60; i++)); do
+        exists=$(curl -sf --max-time 10 "$api/api/admin/exists" 2> /dev/null)
+        [[ -n $exists ]] && break
+        sleep 2
+    done
+    [[ $exists == true ]] && return 0
+    user=$(_get_master_username)
+    pw=$(_get_user_password "$user")
+    if [[ $exists == false && -n $pw ]] &&
+        printf '%s' "$pw" | jq -Rs --arg n "$user" '{username: $n, password: .}' |
+        curl -sf --max-time 10 -o /dev/null -H 'Content-Type: application/json' --data @- "$api/api/account/register"; then
+        echo_info "Kavita's admin is ${user}, with the master password"
+        return 0
+    fi
+    echo_warn "Kavita has no account yet: open it now, whoever registers first becomes Kavita's admin"
+    return 1
+}

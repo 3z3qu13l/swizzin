@@ -1,0 +1,50 @@
+#!/bin/bash
+# FileBrowser Quantum helpers
+
+fbq_bin=/opt/filebrowserquantum/filebrowser
+
+function _fbq_config() {
+    echo "/home/$(_get_master_username)/.config/filebrowserquantum/config.yaml"
+}
+
+# Downloads the latest FileBrowser Quantum release to $fbq_bin
+function fbq_download_latest() {
+    local arch version tmp active=
+    case "$(_os_arch)" in
+        amd64 | arm64) arch=$(_os_arch) ;;
+        armhf) arch=armv7 ;;
+        *)
+            echo_error "$(_os_arch) is not supported by FileBrowser Quantum"
+            exit 1
+            ;;
+    esac
+    # releases/latest is the newest stable release, the betas are tagged apart
+    version=$(github_latest_version gtsteffaniak/filebrowser)
+    if [[ -z $version ]]; then
+        echo_error "Could not find the latest FileBrowser Quantum release"
+        exit 1
+    fi
+
+    echo_progress_start "Downloading FileBrowser Quantum ${version}"
+    mkdir -p "${fbq_bin%/*}"
+    tmp=$(mktemp "${fbq_bin}.XXXXXX")
+    if ! curl -fsSL "https://github.com/gtsteffaniak/filebrowser/releases/download/${version}/linux-${arch}-filebrowser" -o "$tmp" >> "$log" 2>&1; then
+        rm -f "$tmp"
+        echo_error "Could not download FileBrowser Quantum"
+        exit 1
+    fi
+    chmod 755 "$tmp"
+    systemctl -q is-active filebrowserquantum && active=1 && systemctl stop filebrowserquantum
+    mv "$tmp" "$fbq_bin"
+    [[ -n $active ]] && systemctl start filebrowserquantum
+    echo_progress_done
+    return 0
+}
+
+# Sets the password of the master's FileBrowser Quantum account, an admin, creating it when missing.
+# The server holds its database: stop it first.
+function fbq_set_password() {
+    local user=$1 pass=$2
+    # the CLI creates the database on its first run, with an admin: given this password, it generates none
+    printf '%s' "$pass" | FILEBROWSER_ADMIN_PASSWORD="$pass" runuser -u "$user" -- "$fbq_bin" -c "$(_fbq_config)" user set "$user" -a --password >> "$log" 2>&1
+}
