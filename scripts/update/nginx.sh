@@ -269,7 +269,7 @@ FIAC
     fi
 
     # Only the cipher suites still considered safe, and the key exchange nginx picks (X25519, post-quantum where OpenSSL has it)
-    if grep -q 'ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:EECDH+AESGCM:EDH+AESGCM;' /etc/nginx/snippets/ssl-params.conf; then
+    if grep -q '^ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:EECDH+AESGCM:EDH+AESGCM;$' /etc/nginx/snippets/ssl-params.conf; then
         echo_progress_start "Upgrading SSL ciphers"
         sed -e 's|^ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:EECDH+AESGCM:EDH+AESGCM;$|ssl_ciphers ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;|' \
             -e 's|^ssl_ecdh_curve secp384r1;$|ssl_ecdh_curve auto;|' -i /etc/nginx/snippets/ssl-params.conf
