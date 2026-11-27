@@ -328,6 +328,11 @@ function _list() {
     done
 }
 
+# Writes a user's password file, readable by root only: it also passes on with backups of /root
+function _write_info() {
+    (umask 077 && : >> "$3" && chmod 600 "$3" && printf '%s\n' "$1:$2" > "$3")
+}
+
 function _adduser() {
     user=$2
     [[ -n $3 ]] && pass=$3
@@ -357,7 +362,7 @@ function _adduser() {
 
     password_check
 
-    echo "$user:$pass" > /root/"${user}".info
+    _write_info "$user" "$pass" /root/"${user}".info
     if [[ $existing != "true" ]]; then
         useradd "${user}" -m -s /bin/bash >> $log 2>&1
     fi
@@ -417,7 +422,7 @@ function _adduser() {
         touch /install/.www-data-acl.done
         usermod -a -G sudo "$user"
         rm /root/"$user".info
-        echo "$user:$pass" > /root/.master.info
+        _write_info "$user" "$pass" /root/.master.info
     elif [[ -z $SETUP_USER ]]; then # Only for non-master users, therefore only if this is not coming from setup.sh
         _write_user_sudoers "$user"
     fi
@@ -541,9 +546,9 @@ function _chpasswd() {
 
     master=$(cut -d: -f1 < /root/.master.info)
     if [[ $user = "$master" ]]; then
-        echo "$user:$pass" > /root/.master.info
+        _write_info "$user" "$pass" /root/.master.info
     fi
-    echo "$user:$pass" > /root/${user}.info
+    _write_info "$user" "$pass" /root/"${user}".info
     chpasswd <<< "${user}:${pass}" >> $log 2>&1
     htpasswd -i /etc/htpasswd "$user" <<< "$pass" >> $log 2>&1
     mkdir -p /etc/htpasswd.d/

@@ -294,11 +294,20 @@ function _home_private() {
 }
 export -f _home_private
 
-# Runs a command as nginx and PHP do once they are in no user's group
+# Runs a command as nginx and PHP do once they are in no user's group. To check an access, use _test_as
 function _as_www_data() {
     setpriv --reuid=www-data --regid=www-data --clear-groups -- "$@"
 }
 export -f _as_www_data
+
+# test's arguments, checked as an account ($1) without its groups. The shell's own test asks the kernel:
+# the test of rust-coreutils (Ubuntu 26.04) reads the mode bits only and ignores ACLs
+function _test_as() {
+    local who=$1
+    shift
+    setpriv --reuid="$who" --regid="$(id -g "$who")" --clear-groups -- sh -c 'test "$@"' sh "$@"
+}
+export -f _test_as
 
 # Sets ACL entries on a folder ($2) and what is in it: $3 on folders, $4 on the rest. Run as its owner ($1)
 # from /, so only what they own and can read is changed, never on another disk mounted inside (rclone,
@@ -352,7 +361,7 @@ function _www_acl_served() {
             fi
         done
         _acl_tree "$u" "$r" "u:$who:rx,d:u:$who:rX" "u:$who:rX"
-        setpriv --reuid="$who" --regid="$who" --clear-groups -- test -r "$r" -a -x "$r" || {
+        _test_as "$who" -r "$r" -a -x "$r" || {
             echo "$who still cannot read $r"
             exit 1
         }
@@ -391,7 +400,7 @@ function _media_acl() {
         done
         # the owner keeps what the server creates there (Calibre-web adds books)
         _acl_tree "$o" "$r" "u:$a:${perm/X/x},d:u:$a:$perm,d:u:$o:rwX" "u:$a:$perm"
-        setpriv --reuid="$a" --regid="$(id -g "$a")" --clear-groups -- test -r "$r" -a -x "$r" || {
+        _test_as "$a" -r "$r" -a -x "$r" || {
             echo "$a still cannot read $r: check the permissions of its parents"
             exit 1
         }

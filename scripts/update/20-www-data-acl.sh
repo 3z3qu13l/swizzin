@@ -116,7 +116,7 @@ _migrate() {
         for u in "${users[@]}"; do
             rtorrent_socket_acl "$u"
             if ! getfacl -cp /run/"$u" 2> /dev/null | grep -q '^default:user:www-data:rw-' ||
-                { [[ -S /run/$u/.rtorrent.sock ]] && ! _as_www_data test -w /run/"$u"/.rtorrent.sock; }; then
+                { [[ -S /run/$u/.rtorrent.sock ]] && ! _test_as www-data -w /run/"$u"/.rtorrent.sock; }; then
                 problems+=("www-data cannot reach the rTorrent socket in /run/$u")
             fi
         done
