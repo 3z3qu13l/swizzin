@@ -17,7 +17,8 @@ function npm_install() {
         npm_update
     fi
 
-    if [[ ! $(command -v npm) ]]; then
+    # the package, not any npm in root's PATH: an nvm npm there does not give /usr/bin/node
+    if ! check_installed nodejs; then
         echo_progress_start "Installing npm"
         apt_install nodejs build-essential
         echo_progress_done "Npm installed"
