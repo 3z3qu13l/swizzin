@@ -37,11 +37,13 @@ body:
       label: What OS are you using?
       multiple: false
       options:
+        - Debian 13 (Trixie)
+        - Ubuntu 26.04 (Resolute)
+        - Ubuntu 24.04 (Noble)
         - Debian 12 (Bookworm)
         - Ubuntu 22.04 (Jammy)
         - Debian 11 (Bullseye)
         - Ubuntu 20.04 (Focal)
-        - Debian 10 (Buster)
     validations:
       required: true
   - type: dropdown

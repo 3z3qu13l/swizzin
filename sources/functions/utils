@@ -1,4 +1,6 @@
 #!/bin/bash
+# Small shared helpers: rar, rm_if_exists, port, RAM and swap checks, installed apps, latest GitHub release,
+# nginx reload, unit removal, per-user binary apps
 
 # Handles rar installation for all distros and architectures
 function install_rar() {
@@ -17,34 +19,6 @@ function install_rar() {
                 apt_install --ignore-errors unrar
                 ;;
         esac
-
-        #Should not be required anymore, left for posterity
-        if [ -n "$dlurl" ]; then
-            # cd /tmp
-            echo_progress_start "Downloading rar & unrar binaries for $(_os_distro)-$(_os_arch)"
-            wget -q "$dlurl" -O /tmp/rarbins.tar.gz || {
-                echo_warn "Failed to download binaries. Please investigate\nInstallation will continue"
-            }
-            tar -xzf /tmp/rarbins.tar.gz -C /tmp >> "$log" 2>&1
-            cp /tmp/rar/*rar /bin >> "$log" 2>&1
-            rm -rf /tmp/rarbins.tar.gz
-            rm -rf /tmp/rar
-            echo_progress_done "rar & unrar installed"
-        fi
-
-        #Currently un-used as well
-        if [ -n "$deburl" ]; then
-            echo_progress_start "Installing unrar"
-            wget -q "$deburl" -O /tmp/unrar.deb || {
-                echo_warn "Failed to download unrar. Please investigate\nInstallation will continue"
-            }
-            if ! dpkg -i /tmp/unrar.deb >> "$log" 2>&1; then
-                echo_warn "Failed to install unrar. Please investigate\nInstallation will continue"
-            else
-                rm /tmp/unrar.deb
-                echo_progress_done "Unrar installed"
-            fi
-        fi
 
         if ! which rar > /dev/null; then
             echo_warn "Rar (for creating archives) is not supported on $(_os_distro)-$(_os_arch).\nInstallation will continue."
@@ -130,24 +104,6 @@ _get_installed_apps() {
     find /install -type f -name .\*.lock | awk -F. '{print $2}' | sort
 }
 
-# ENV_VAR > swizdb key's value > default
-# \
-# $1 = swizdb key
-# $2 = default
-# $3 = ENV_VAR
-# \
-# **Returns key's value after logic**
-function populate_var() {
-    if [ -z "$3" ]; then           # If ENV_VAR is zero length
-        if ! swizdb get "$1"; then # If swizdb key's value is null
-            swizdb set "$1" "$2"   # Save default as value
-        fi
-    else                     # If ENV_VAR isn't zero length
-        swizdb set "$1" "$3" # Save ENV_VAR as value
-    fi
-    swizdb get "$1" # Return swizdb key's value
-}
-
 function github_latest_version() {
     # Argument expects the author/repo format
     # e.g. swizzin/swizzin
@@ -158,4 +114,78 @@ function github_latest_version() {
     url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${1}/releases/latest") || return 1
     [[ $url == */releases/tag/* ]] || return 1
     echo "${url##*/}"
+}
+
+# An app that moved from a templated <app>@ unit to <app>.service: drops a template left behind,
+# warns when the app still runs from it. $1 = app, $2 = its name for the user
+function legacy_template_unit() {
+    local app=$1 name=$2
+    [[ -f /etc/systemd/system/${app}@.service ]] || return 0
+    if [[ -f /etc/systemd/system/${app}.service ]]; then
+        rm -f "/etc/systemd/system/${app}@.service"
+        systemctl daemon-reload
+    else
+        echo_warn "${name} still runs from its ${app}@ service, which is no longer supported. Back up its settings, run systemctl disable --now ${app}@$(_get_master_username) and delete /etc/systemd/system/${app}@.service, then box remove ${app} && box install ${app}"
+    fi
+}
+
+# github_release_asset <owner/repo> <regex>: prints the first download URL of the latest release matching the regex (grep -E). Nothing, and a failure, when there is none
+function github_release_asset() {
+    local url
+    url=$(curl -fsSL "https://api.github.com/repos/${1}/releases/latest" | jq -r '.assets[]?.browser_download_url' | grep -E -- "$2" | head -n 1)
+    [[ -n $url ]] || return 1
+    echo "$url"
+}
+
+# nginx_reload: reloads nginx when it is installed, output to $log
+function nginx_reload() {
+    if [[ -f /install/.nginx.lock ]]; then
+        systemctl reload nginx >> "$log" 2>&1
+    fi
+}
+
+# remove_unit <unit>...: stops and disables each service, deletes /etc/systemd/system/<unit>.service, then reloads systemd once
+function remove_unit() {
+    local unit
+    for unit in "$@"; do
+        systemctl disable --now -q "$unit" >> "$log" 2>&1
+        rm -f /etc/systemd/system/"$unit".service
+    done
+    systemctl daemon-reload
+}
+
+# upgrade_peruser_app <app>: downloads the latest release with <app>_download_latest (sources/functions/<app>), then restarts <app>@<user> of every user
+function upgrade_peruser_app() {
+    local app=$1 user
+    if [[ ! -f /install/.${app}.lock ]]; then
+        echo_error "${app} doesn't appear to be installed!"
+        exit 1
+    fi
+    #shellcheck source=/dev/null
+    . /etc/swizzin/sources/functions/"$app"
+    "${app}_download_latest"
+    echo_progress_start "Restarting ${app} services"
+    for user in $(_get_user_list); do
+        echo_log_only "Restarting ${app} for $user"
+        systemctl try-restart "${app}@${user}"
+    done
+    echo_progress_done "Service restarted"
+    echo_success "${app} upgraded"
+}
+
+# remove_peruser_app <app> [<file>...]: stops <app>@<user> and deletes ~/.config/<app> of every user, then the unit, /usr/bin/<app>, the given files, the nginx confs and the lock
+function remove_peruser_app() {
+    local app=$1 user
+    shift
+    for user in $(_get_user_list); do
+        systemctl disable --now -q "${app}@${user}"
+        rm -rf "/home/${user}/.config/${app}"
+    done
+    rm -f "/etc/systemd/system/${app}@.service" "/usr/bin/${app}" "$@"
+    systemctl daemon-reload -q
+    if [[ -f /install/.nginx.lock ]]; then
+        rm -f "/etc/nginx/apps/${app}.conf" /etc/nginx/conf.d/*."${app}".conf
+        systemctl reload nginx >> "$log" 2>&1
+    fi
+    rm "/install/.${app}.lock"
 }

@@ -1,8 +1,9 @@
 #!/bin/bash
 
-systemctl disable --now -q pyload
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
 
-rm /etc/systemd/system/pyload.service
+remove_unit pyload
 
 rm -rf /opt/pyload
 rm -rf /opt/.venv/pyload
@@ -11,5 +12,5 @@ if [ -z "$(ls -A /opt/.venv)" ]; then
 fi
 rm -rf /etc/nginx/apps/pyload.conf
 apt_remove tesseract-ocr gocr rhino
-systemctl reload nginx > /dev/null 2>&1
+nginx_reload
 rm /install/.pyload.lock

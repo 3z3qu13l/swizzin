@@ -1,0 +1,26 @@
+#!/bin/bash
+# *arr apps (Sonarr, Radarr, Lidarr, Prowlarr, Readarr): download URL for this architecture, owner of the install
+
+# servarr_url <urlbase>: prints the download URL with &arch= for this architecture. Fails with a message on an architecture they do not build for
+function servarr_url() {
+    case "$(_os_arch)" in
+        "amd64") echo "${1}&arch=x64" ;;
+        "armhf") echo "${1}&arch=arm" ;;
+        "arm64") echo "${1}&arch=arm64" ;;
+        *)
+            echo_error "Arch not supported" >&2
+            return 1
+            ;;
+    esac
+}
+
+# servarr_owner <app> [<owner>]: prints the owner given, else the one stored in swizdb (<app>/owner), else the master. Returns 1 when the caller must store it (swizdb set): it never fails
+function servarr_owner() {
+    if [[ -n $2 ]]; then
+        echo "$2"
+        return 1
+    fi
+    swizdb get "$1/owner" && return 0
+    _get_master_username
+    return 1
+}

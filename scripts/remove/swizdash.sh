@@ -1,6 +1,9 @@
 #!/bin/bash
 # swizdash removal
 
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 # stopping an install started from the dashboard would leave that app half installed
 if systemctl list-units --plain --no-legend --state=activating,active 'swizdash-job-*' | grep -q .; then
     echo_error "swizdash is installing or removing an app, try again once it is done"
@@ -10,7 +13,7 @@ systemctl disable -q --now swizdash swizdash.socket >> "$log" 2>&1
 rm -f /etc/systemd/system/swizdash.service /etc/systemd/system/swizdash.socket
 systemctl daemon-reload
 rm -f /etc/nginx/sites-enabled/swizdash /etc/nginx/swizdash-token.conf
-systemctl reload nginx
+nginx_reload
 rm -f /etc/sudoers.d/swizdash /usr/local/sbin/swizdash-helper /run/swizdash-helper.lock
 rm -rf /opt/swizdash /etc/swizdash /var/lib/swizdash /var/log/swizdash
 # swizdash only writes this file when ptrace_scope was 0: back to 0, then the system's

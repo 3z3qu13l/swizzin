@@ -1,4 +1,6 @@
 #!/bin/bash
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
 #shellcheck source=sources/functions/syncthing
 . /etc/swizzin/sources/functions/syncthing
 
@@ -14,5 +16,5 @@ rm -f "$syncthing_unit"
 systemctl daemon-reload
 rm -f "$syncthing_list" "$syncthing_pref" "$syncthing_keyring"
 rm -f /etc/nginx/apps/syncthing.conf
-if [[ -f /install/.nginx.lock ]]; then systemctl reload nginx; fi
+nginx_reload
 rm -f /install/.syncthing.lock

@@ -5,9 +5,7 @@
 . /etc/swizzin/sources/functions/utils
 
 user=$(_get_master_username)
-systemctl disable -q --now komga >> "$log" 2>&1
-rm_if_exists /etc/systemd/system/komga.service
-systemctl daemon-reload
+remove_unit komga
 rm_if_exists /opt/komga
 rm_if_exists "/home/${user}/.config/komga"
 if [[ -f /install/.nginx.lock ]]; then

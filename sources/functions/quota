@@ -2,7 +2,7 @@
 
 # Sudo rules letting the web server read the disk quotas
 function quota_sudoers() {
-    local tmp=/etc/sudoers.d/quota.tmp who=(www-data) w rules defaults=()
+    local who=(www-data) w rules defaults=()
     # ruTorrent's own account, as swizzin created it: its diskspace plugin calls quota at every refresh
     if [[ -f /install/.rutorrent.account && $(id -u rutorrent 2> /dev/null) == "$(< /install/.rutorrent.account)" ]]; then who+=(rutorrent); fi
     rules="Cmnd_Alias   QUOTA = /usr/bin/quota
@@ -14,18 +14,8 @@ $w     ALL = (ALL) NOPASSWD: QUOTA"
     done
     # keep the web server's frequent sudo calls out of the auth log where sudo allows it
     # (sudo-rs, on Ubuntu 26.04, does not know these settings)
-    printf '%s\n' "${defaults[@]}" "" "$rules" > "$tmp" && chmod 0440 "$tmp"
-    local written=$?
-    if [[ $written -eq 0 ]] && ! visudo -cqf "$tmp" > /dev/null 2>&1; then
-        printf '%s\n' "$rules" > "$tmp"
-        written=$?
-    fi
-    # a broken sudoers file would lock sudo for everyone; a truncated one would drop the quota rules
-    if [[ $written -eq 0 ]] && visudo -cqf "$tmp" > /dev/null 2>&1; then
-        mv -f "$tmp" /etc/sudoers.d/quota
-    else
-        rm -f "$tmp"
+    _install_sudoers quota "$(printf '%s\n' "${defaults[@]}" "" "$rules")" "$rules" || {
         echo_error "Could not write the quota sudo rules"
         return 1
-    fi
+    }
 }

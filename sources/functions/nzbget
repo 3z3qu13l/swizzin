@@ -1,19 +1,11 @@
 #!/bin/bash
+# NZBGet: download its installer and write its per-user service
 
 function _download() {
     echo_progress_start "Downloading install script"
     cd /tmp
     wget https://nzbget.com/download/nzbget-latest-bin-linux.run >> $log 2>&1
     echo_progress_done
-}
-
-function _get_noexec() {
-    noexec=$(grep "/tmp" /etc/fstab | grep noexec)
-
-    if [[ -n $noexec ]]; then
-        mount -o remount,exec /tmp
-        noexec=1
-    fi
 }
 
 function _service() {

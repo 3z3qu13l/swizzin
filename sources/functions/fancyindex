@@ -1,4 +1,5 @@
 #!/bin/bash
+# nginx fancyindex: the theme of the directory listings
 
 download_theme() {
     theme_url="https://github.com/Naereen/Nginx-Fancyindex-Theme/archive/ee2e73c8dd1584b84ddad0cfcc44fbd903bdccd8.tar.gz"

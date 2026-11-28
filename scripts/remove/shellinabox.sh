@@ -5,6 +5,9 @@
 # Copyright (C) 2017 Swizzin
 # Licensed under GNU General Public License v3.0 GPL-3
 #################################################################################
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 systemctl stop -q shellinabox
 systemctl disable -q shellinabox
 
@@ -14,4 +17,4 @@ rm -rf /etc/systemd/system/shellinabox.service /etc/systemd/system/shellinabox.s
 systemctl daemon-reload
 rm -rf /install/.shellinabox.lock
 rm -rf /etc/nginx/apps/shell.conf
-systemctl reload nginx
+nginx_reload

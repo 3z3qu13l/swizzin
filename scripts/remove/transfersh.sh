@@ -5,9 +5,7 @@
 . /etc/swizzin/sources/functions/utils
 
 user=$(_get_master_username)
-systemctl disable -q --now transfersh >> "$log" 2>&1
-rm_if_exists /etc/systemd/system/transfersh.service
-systemctl daemon-reload
+remove_unit transfersh
 rm_if_exists /opt/transfersh
 rm_if_exists /etc/transfersh.env
 if [[ -f /install/.nginx.lock ]]; then

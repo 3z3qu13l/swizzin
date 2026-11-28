@@ -63,15 +63,16 @@ function _install() {
             installa+=("$i" '""')
         fi
     done
-    whiptail --title "Install Software" --checklist --noitem --separate-output "Make some choices:" 15 26 7 "${installa[@]}" 2> results
+    results=$(mktemp)
+    whiptail --title "Install Software" --checklist --noitem --separate-output "Make some choices:" 15 26 7 "${installa[@]}" 2> "$results"
 
-    readarray -t result < results
+    readarray -t result < "$results"
     for result in "${result[@]}"; do
         echo_info "Installing ${result}"
         bash "/usr/local/bin/swizzin/install/${result}.sh"
     done
 
-    rm results
+    rm -f "$results"
     _function
 }
 
@@ -84,26 +85,29 @@ function _remove() {
             removea+=("$i" '""')
         fi
     done
-    whiptail --title "Remove Software" --noitem --checklist --separate-output "Make some choices:" 15 26 7 "${removea[@]}" 2> results
-    readarray -t result < results
+    results=$(mktemp)
+    whiptail --title "Remove Software" --noitem --checklist --separate-output "Make some choices:" 15 26 7 "${removea[@]}" 2> "$results"
+    readarray -t result < "$results"
     for result in "${result[@]}"; do
-        echo_info -e "Removing ${result}"
+        echo_info "Removing ${result}"
         bash /usr/local/bin/swizzin/remove/${result}.sh
     done
-    rm results
+    rm -f "$results"
     _function
 }
 
 function _cli() {
     arg=("$@")
     packages=("${arg[@]:1}")
-    repo=($(find /usr/local/bin/swizzin/install -type f -printf "%f\n" | cut -d "." -f 1))
     local failed=()
     for app in "${packages[@]}"; do
-        if [[ -f /install/.${app}.lock ]]; then
+        if [[ ! $app =~ ^[A-Za-z0-9_-]+$ ]]; then
+            echo_warn "Invalid package name: $app"
+            failed+=("$app")
+        elif [[ -f /install/.${app}.lock ]]; then
             echo_warn "Package $app already installed"
         else
-            if [[ "${repo[*]}" =~ $app ]]; then
+            if [[ -f /usr/local/bin/swizzin/install/$app.sh ]]; then
                 echo_info "Installing $app"
                 echo_docs "applications/$app"
                 bash /usr/local/bin/swizzin/install/$app.sh || failed+=("$app")
@@ -124,14 +128,24 @@ function _cli() {
 function _clr() {
     arg=("$@")
     packages=("${arg[@]:1}")
+    local rc=0
     for app in "${packages[@]}"; do
-        if [[ -f /install/.$app.lock && ! -f /usr/local/bin/swizzin/remove/$app.sh ]]; then
+        if [[ ! $app =~ ^[A-Za-z0-9_-]+$ ]]; then
+            echo_warn "Invalid package name: $app"
+            rc=1
+        elif [[ -f /install/.$app.lock && ! -f /usr/local/bin/swizzin/remove/$app.sh ]]; then
             echo_warn "box can no longer remove $app: remove it by hand"
+            rc=1
         elif [[ -f /install/.$app.lock ]]; then
             schedule_remove="true"
             echo_info "Removing $app"
             bash /usr/local/bin/swizzin/remove/$app.sh
-            echo_success "$app removed"
+            if [[ -f /install/.$app.lock ]]; then
+                echo_error "$app removal failed"
+                rc=1
+            else
+                echo_success "$app removed"
+            fi
         else
             echo_warn "Package $app not installed"
         fi
@@ -139,14 +153,11 @@ function _clr() {
     if [[ $schedule_remove = "true" ]]; then
         apt_autoremove
     fi
+    return $rc
 }
 
 function _update() {
-    # Checking for develop branch
     git_ref="origin/master"
-    if [ "$branch_name" == "develop" ]; then
-        git_ref="origin/develop"
-    fi
 
     if [[ -L /etc/swizzin ]]; then
         noupdate_message="Not updating /etc/swizzin as it is a symlink. Please consult your provider/maintainers in case you believe this is an error."
@@ -230,9 +241,9 @@ function _upgrade() {
 }
 
 function _upgrade_all() {
-    # These ask which version to build, reset the nginx config, migrate Sonarr v2, or set up plexupdate interactively.
+    # These ask which version to build, reset the nginx config, or set up plexupdate interactively; syncthing migrates its data to v2.
     # curl has no lock file, so it is never picked up here.
-    local skipped=(deluge nginx plex qbittorrent rtorrent sonarr syncthing)
+    local skipped=(deluge nginx plex qbittorrent rtorrent syncthing)
     local apps=() failed=() app script
     for script in /usr/local/bin/swizzin/upgrade/*.sh; do
         app=$(basename "$script" .sh)
@@ -268,9 +279,10 @@ function _help() {
     echo -e "\t$(basename $0) [ adduser | deluser | chpasswd ] ${bold}username${normal} [ password ]"
     echo -e "\t$(basename "$0") [ fix-downloads ] ${bold}username${normal}"
     echo -e "\t$(basename "$0") [ media-access ] ${bold}app${normal} ${bold}folder${normal}"
-    echo -e "\t$(basename $0) [ list | update ]"
+    echo -e "\t$(basename $0) [ test ] [ ${bold}pkg1${normal} ... ]"
+    echo -e "\t$(basename $0) [ list | update | rtx | rmgrsec ]"
     echo
-    echo -e "Note: Only install and remove functions accept package arguments. List and update must be run without modifiers\n" | fmt --goal=66 --tagged-paragraph
+    echo -e "Note: install, remove, upgrade and test take package names. List and update take none\n" | fmt --goal=66 --tagged-paragraph
     echo
     printf "${sgformat}" "install"
     echo -e "The install function requires at least one package name as an argument but will accept multiples" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
@@ -283,7 +295,7 @@ function _help() {
     printf "${sgformat}" "upgrade"
     echo -e "Runs the associated upgrade script." | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
     echo -e "               Example: box upgrade plex curl" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
-    echo -e "               box upgrade --all upgrades every installed package except rtorrent, qbittorrent, deluge, nginx, plex and sonarr" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo -e "               box upgrade --all upgrades every installed package except rtorrent, qbittorrent, deluge, nginx, plex and syncthing" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
     echo
     printf "${sgformat}" "adduser"
     echo -e "The adduser function requires a single user to be specified, this user will be created" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
@@ -310,6 +322,16 @@ function _help() {
     echo
     printf "${sgformat}" "list"
     echo -e "The list command will list packages available to be managed by box" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo
+    printf "${sgformat}" "test"
+    echo -e "Checks that the given installed packages, or all of them, run and answer" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo -e "               Example: box test qbittorrent" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo
+    printf "${sgformat}" "rtx"
+    echo -e "Installs or removes ruTorrent plugins and themes" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo
+    printf "${sgformat}" "rmgrsec"
+    echo -e "Replaces an OVH grsec kernel with the distribution's kernel" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
 }
 
 function _list() {
@@ -318,7 +340,7 @@ function _list() {
     for app in "${repo[@]}"; do
         sgformat="${bold}%-15s${normal}"
         spacing=$(echo $'\t' | pr -Te15)
-        description=$(grep -i -m 1 \\\[\'$app $locale | cut -d= -f2 | sed "s/ '//g" | sed "s/';//g" | sed "s/\\\'/'/g")
+        description=$(grep -m 1 "\['${app^^}'\]" $locale | cut -d= -f2 | sed "s/ '//g" | sed "s/';//g" | sed "s/\\\'/'/g")
         if [[ -z $description ]]; then description="Description missing"; fi
         printf "${sgformat}" "$app"
         echo -e "${description}\n" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
@@ -351,7 +373,7 @@ function _adduser() {
 
     if id -u "${user}" > /dev/null 2>&1; then
         echo_info "The user ${user} already appears to be present on this machine; however, it does not appear to be configured as a swizzin user.\nThe user will be added to swizzin."
-        if [[ "$UNATTEND" == 'true' ]]; then
+        if [[ "$UNATTEND" != 'true' ]] && ! _no_terminal; then
             ask "Continue setting up user?" Y || exit 1
         fi
 
@@ -798,7 +820,7 @@ case "$1" in
             echo_error "You must choose some packages"
             exit 1
         fi
-        _clr "$@"
+        _clr "$@" || box_rc=1
         ;;
     "adduser")
         if [[ -n $4 ]]; then

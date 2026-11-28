@@ -1,4 +1,5 @@
 #!/bin/bash
+# Transmission: source menu (repo or PPA), install, per-user RPC ports, AppArmor profile
 # Author Flying_sausages for Swizzin 2020
 
 function _get_next_port_from_json() {

@@ -2,7 +2,7 @@
 #shellcheck source=sources/functions/utils
 . /etc/swizzin/sources/functions/utils
 user=$(_get_master_username)
-systemctl disable --now nzbhydra
+remove_unit nzbhydra
 
 #Old nzbhydra1 installs
 rm_if_exists /opt/nzbhydra
@@ -16,7 +16,6 @@ fi
 rm_if_exists /opt/nzbhydra2
 rm_if_exists /home/${user}/.config/nzbhydra2
 
-rm /etc/systemd/system/nzbhydra.service
 rm -f /etc/nginx/apps/nzbhydra.conf
 rm /install/.nzbhydra.lock
-systemctl reload nginx
+nginx_reload

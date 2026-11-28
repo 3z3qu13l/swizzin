@@ -1,4 +1,5 @@
 #!/bin/bash
+# Let's Encrypt renewal hooks giving the new certificate to vsftpd and ZNC
 
 function le_vsftpd_hook() {
     # Check for LE cert, and copy it if available.

@@ -1,7 +1,9 @@
 #!/bin/bash
 
-systemctl disable -q lounge >> /dev/null 2>&1
-systemctl stop -q lounge
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
+remove_unit lounge
 
 # remove old npm installs
 npm uninstall -g thelounge --save >> /dev/null 2>&1
@@ -15,7 +17,6 @@ rm -rf /home/lounge # just in case
 rm -rf /opt/lounge  # new location who dis
 
 rm -f /etc/nginx/apps/lounge.conf
-systemctl reload nginx -q
+nginx_reload
 
-rm -f /etc/systemd/system/lounge.service
 rm -f /install/.lounge.lock

@@ -10,19 +10,13 @@ function update_nginx() {
         systemctl reload nginx
     fi
     # Install missing nginx packages
-    [[ $(lsb_release -cs) =~ ^(focal|buster|bullseye)$ ]] && geoip="php-geoip" || geoip=""
+    [[ $(lsb_release -cs) =~ ^(focal|bullseye)$ ]] && geoip="php-geoip" || geoip=""
     # PHP 8.5 (resolute) builds opcache in, there is no php-opcache package any more
     [[ $(lsb_release -cs) == resolute ]] && opcache="" || opcache="php-opcache"
     LIST="php-fpm php-cli php-dev php-xml php-curl php-xmlrpc php-json php-mbstring ${opcache} php-xml php-zip ${geoip}"
     apt_install $LIST
-    # Purge php7.0-fpm on all platforms
     cd /etc/php
     phpv=$(ls -d */ | cut -d/ -f1)
-    if [[ $phpv =~ 7\\.1 ]]; then
-        if [[ $phpv =~ 7\\.0 ]]; then
-            apt_remove --purge php7.0-fpm
-        fi
-    fi
     # Include php functions and set vars
     #shellcheck source=sources/functions/php
     . /etc/swizzin/sources/functions/php

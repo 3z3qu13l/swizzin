@@ -4,6 +4,8 @@
 
 users=($(cut -d: -f1 < /etc/htpasswd))
 
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
 #shellcheck source=sources/functions/php
 . /etc/swizzin/sources/functions/php
 #shellcheck source=sources/functions/rtorrent
@@ -16,7 +18,7 @@ rutorrent_profiles_unmount || {
 }
 rm -f /install/.rutorrent.nosymfollow.failed /install/.rutorrent.nginx-deny.failed /install/.rutorrent.nginx-php.failed /install/.rutorrent.tag /install/.rutorrent.account.foreign /install/.rutorrent.nginx-media.failed /install/.rutorrent.share.key
 rm -rf /etc/nginx/apps/rutorrent.conf
-systemctl reload nginx
+nginx_reload
 rutorrent_remove_account
 rm -rf /srv/rutorrent
 
@@ -27,4 +29,4 @@ if [[ ! -f /install/.flood.lock ]]; then
     done
 fi
 rm -rf /install/.rutorrent.lock
-systemctl reload nginx
+nginx_reload

@@ -150,14 +150,15 @@ function _itplugs() {
         fi
     done
     if [[ -z $result ]]; then
-        whiptail --title "Choose Plugins" --checklist --noitem --separate-output "Make some choices:" 15 46 7 "${installa[@]}" 2> /tmp/results
+        results=$(mktemp)
+        whiptail --title "Choose Plugins" --checklist --noitem --separate-output "Make some choices:" 15 46 7 "${installa[@]}" 2> "$results"
 
         exitstatus=$?
         if [[ $exitstatus = "1" ]]; then
             _plugins
         fi
 
-        readarray -t result < /tmp/results
+        readarray -t result < "$results"
     fi
     for result in "${result[@]}"; do
         echo_info "Installing ${result}"
@@ -282,7 +283,7 @@ FMCONF
     rutorrent_perms
     /usr/local/bin/swizzin/php-fpm-cli -r 'opcache_reset();'
     if [[ -z $arg ]]; then
-        rm /tmp/results
+        rm -f "$results"
         _function
     fi
 }
@@ -302,14 +303,15 @@ function _rmplugs() {
         fi
     done
     if [[ -z $result ]]; then
-        whiptail --title "Choose Plugins" --noitem --checklist --separate-output "Make some choices:" 15 46 7 "${removea[@]}" 2> /tmp/results
+        results=$(mktemp)
+        whiptail --title "Choose Plugins" --noitem --checklist --separate-output "Make some choices:" 15 46 7 "${removea[@]}" 2> "$results"
 
         exitstatus=$?
         if [[ $exitstatus = "1" ]]; then
             _plugins
         fi
 
-        readarray -t result < /tmp/results
+        readarray -t result < "$results"
     fi
     for result in "${result[@]}"; do
         echo_info "Removing ${result}"
@@ -326,7 +328,7 @@ function _rmplugs() {
     done
     /usr/local/bin/swizzin/php-fpm-cli -r 'opcache_reset();'
     if [[ -z $arg ]]; then
-        rm /tmp/results
+        rm -f "$results"
         _function
     fi
 }
@@ -347,14 +349,15 @@ function _itthemes() {
         fi
     done
     if [[ -z $result ]]; then
-        whiptail --title "Choose Themes" --checklist --noitem --separate-output "Make some choices:" 15 46 7 "${installa[@]}" 2> /tmp/results
+        results=$(mktemp)
+        whiptail --title "Choose Themes" --checklist --noitem --separate-output "Make some choices:" 15 46 7 "${installa[@]}" 2> "$results"
 
         exitstatus=$?
         if [[ $exitstatus = "1" ]]; then
             _themes
         fi
 
-        readarray -t result < /tmp/results
+        readarray -t result < "$results"
     fi
     for result in "${result[@]}"; do
         echo_info "Installing ${result}"
@@ -381,7 +384,7 @@ function _itthemes() {
     rutorrent_perms
     /usr/local/bin/swizzin/php-fpm-cli -r 'opcache_reset();'
     if [[ -z $arg ]]; then
-        rm /tmp/results
+        rm -f "$results"
         _function
     fi
 }
@@ -398,14 +401,15 @@ function _rmthemes() {
         fi
     done
     if [[ -z $result ]]; then
-        whiptail --title "Choose Themes" --noitem --checklist --separate-output "Make some choices:" 15 46 7 "${removea[@]}" 2> /tmp/results
+        results=$(mktemp)
+        whiptail --title "Choose Themes" --noitem --checklist --separate-output "Make some choices:" 15 46 7 "${removea[@]}" 2> "$results"
 
         exitstatus=$?
         if [[ $exitstatus = "1" ]]; then
             _themes
         fi
 
-        readarray -t result < /tmp/results
+        readarray -t result < "$results"
     fi
     for result in "${result[@]}"; do
         echo_info "Removing ${result}"
@@ -413,7 +417,7 @@ function _rmthemes() {
     done
     /usr/local/bin/swizzin/php-fpm-cli -r 'opcache_reset();'
     if [[ -z $arg ]]; then
-        rm /tmp/results
+        rm -f "$results"
         _function
     fi
 }

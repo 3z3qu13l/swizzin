@@ -1,4 +1,5 @@
 #!/bin/bash
+# create_self_ssl: a self-signed certificate for nginx
 
 function create_self_ssl() {
     user=$1

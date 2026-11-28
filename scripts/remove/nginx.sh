@@ -2,7 +2,7 @@
 
 systemctl stop -q nginx
 
-[[ $(_os_codename) =~ ^(focal|buster|bullseye)$ ]] && geoip="php-geoip" || geoip=""
+[[ $(_os_codename) =~ ^(focal|bullseye)$ ]] && geoip="php-geoip" || geoip=""
 APT="nginx-extras nginx libnginx-mod-http-fancyindex ssl-cert php php-cli php-fpm php-dev php-xml php-curl php-xmlrpc php-json php-opcache ${geoip}"
 apt_remove $APT
 

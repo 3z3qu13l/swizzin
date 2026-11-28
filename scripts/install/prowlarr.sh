@@ -5,15 +5,11 @@
 
 #shellcheck source=sources/functions/utils
 . /etc/swizzin/sources/functions/utils
+#shellcheck source=sources/functions/servarr
+. /etc/swizzin/sources/functions/servarr
 
 app_name="prowlarr"
-if [ -z "$PROWLARR_OWNER" ]; then
-    if ! PROWLARR_OWNER="$(swizdb get "$app_name/owner")"; then
-        PROWLARR_OWNER="$(_get_master_username)"
-        echo_info "Setting ${app_name^} owner = $PROWLARR_OWNER"
-        swizdb set "$app_name/owner" "$PROWLARR_OWNER"
-    fi
-else
+if ! PROWLARR_OWNER=$(servarr_owner "$app_name" "$PROWLARR_OWNER"); then
     echo_info "Setting ${app_name^} owner = $PROWLARR_OWNER"
     swizdb set "$app_name/owner" "$PROWLARR_OWNER"
 fi
@@ -47,15 +43,7 @@ _install_prowlarr() {
     echo_progress_start "Downloading release archive"
 
     urlbase="https://$app_name.servarr.com/v1/update/$app_branch/updatefile?os=linux&runtime=netcore"
-    case "$(_os_arch)" in
-        "amd64") dlurl="${urlbase}&arch=x64" ;;
-        "armhf") dlurl="${urlbase}&arch=arm" ;;
-        "arm64") dlurl="${urlbase}&arch=arm64" ;;
-        *)
-            echo_error "Arch not supported"
-            exit 1
-            ;;
-    esac
+    dlurl=$(servarr_url "$urlbase") || exit 1
 
     if ! curl "$dlurl" -L -o "/tmp/$app_name.tar.gz" >> "$log" 2>&1; then
         echo_error "Download failed, exiting"

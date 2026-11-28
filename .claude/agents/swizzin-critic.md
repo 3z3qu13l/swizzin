@@ -56,6 +56,15 @@ You modify **no** file in the repository. `Write` and `Edit` are for your agent 
 5. **Bugs and consistency**: logic, edge cases, departures from the conventions of neighbouring scripts and existing shared functions.
 6. **Maintainability**: only if it really hurts readability or duplicates a function from `sources/functions`.
 
+## Server already in service: checklist
+
+The VMs start from a fresh install, so they miss these states. Walk through each one the diff touches, against the whole `master...HEAD` diff, not only the last commit:
+
+- **Leftovers of an older version**: packages, apt sources, units or folders an old install added (mono for Sonarr v3, Radarr, Lidarr or Jackett, python2 venvs, `<app>@` units). Code deleted as "dead" must not have been the only thing cleaning them up.
+- **Port already taken**: a script that picks another port when the default one is used. Every reader of that port (tests, nginx, dashboard) must read the chosen one, never the default.
+- **Lock without its scripts**: an app with `/install/.<app>.lock` whose `remove`, `update` or `nginx` script the change deletes. `box` must say so and exit non-zero.
+- **Setup or install run again**: `setup.sh` or `box install` on a server that already has nginx, the app, or its users. No question or step may assume a fresh server.
+
 ## Report format
 
 The report is in French, with these headings:

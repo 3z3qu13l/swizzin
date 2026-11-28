@@ -28,6 +28,7 @@ function _removeBTSync() {
         rm -rf /home/rslsync
     fi
     rm -rf /etc/systemd/system/resilio-sync.service
+    systemctl daemon-reload
     # the synced files are the user's, not the program's
     if [[ -n $(find /home/${MASTER}/sync_folder -type f -print -quit 2> /dev/null) ]]; then
         echo_info "The synced files are kept in /home/${MASTER}/sync_folder"

@@ -1,9 +1,15 @@
 #!/bin/bash
 # xmrig installer
 # Author: liara
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 user=$(cut -d: -f1 < /root/.master.info)
 noexec=$(grep "/tmp" /etc/fstab | grep noexec)
-latest=$(curl -s https://github.com/xmrig/xmrig/releases/latest | grep -oP 'v\K\d+.\d+.\d+')
+latest=$(github_latest_version xmrig/xmrig) || {
+    echo_error "Could not find the latest xmrig release"
+    exit 1
+}
 
 while true; do
     echo_query "Please choose a dev donation amount. Minimum fee is 1%."
@@ -43,7 +49,7 @@ apt_install screen git build-essential cmake libuv1-dev libmicrohttpd-dev libssl
 
 cd /tmp
 echo_progress_start "Cloning xmrig"
-git clone --depth 1 --single-branch --branch v${latest} https://github.com/xmrig/xmrig.git >> $log 2>&1
+git clone --depth 1 --single-branch --branch ${latest} https://github.com/xmrig/xmrig.git >> $log 2>&1
 echo_progress_done
 
 cd xmrig

@@ -19,5 +19,6 @@ for u in "${users[@]}"; do
 done
 
 rm /etc/systemd/system/nzbget@.service
+systemctl daemon-reload
 rm /etc/nginx/apps/nzbget.conf
 rm /install/.nzbget.lock

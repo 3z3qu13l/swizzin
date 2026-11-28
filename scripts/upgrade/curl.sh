@@ -1,5 +1,5 @@
 #!/bin/bash
-# Upgrade curl to bypass the bug in Debian 10. Can be used on any system however, but the benefit is to Buster users most
+# Builds a newer curl and c-ares from source
 
 #shellcheck source=sources/functions/curl
 . /etc/swizzin/sources/functions/curl

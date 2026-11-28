@@ -70,7 +70,6 @@ export -f _process_apt_args
 _unset_apt_args() {
     unset _apt_ignore_errors
     unset _apt_interactive
-    unset _apt_ignore_errors
     unset _apt_skip_checks
     unset _apt_remove_purge
     unset _apt_install_recommends
@@ -217,8 +216,7 @@ export -f _apt_update
 ##############################################################################
 # EXTERNAL FUNCTIONS
 #
-# These functions are intended to be used _only_ by other functions inside
-# this script file.
+# These functions are meant to be called by the scripts.
 ##############################################################################
 
 # Checks if a package is installed using package manager or dpkg

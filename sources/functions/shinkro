@@ -1,4 +1,5 @@
 #!/bin/bash
+# shinkro: download its latest release for this architecture
 
 #Log is required for checking for failures
 if [[ -z $log ]]; then export log="/root/logs/swizzin.log"; fi

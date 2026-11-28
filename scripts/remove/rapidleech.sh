@@ -17,13 +17,16 @@
 #   including (via compiler) GPL-licensed code must also be made available
 #   under the GPL along with build & install instructions.
 #
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 MASTER=$(cut -d: -f1 < /root/.master.info)
 
 function _removeRapidleech() {
     sudo rm -r /home/"${MASTER}"/rapidleech
     sudo rm /etc/nginx/apps/rapidleech.conf
     sudo rm /install/.rapidleech.lock
-    systemctl reload nginx
+    nginx_reload
 }
 
 _removeRapidleech

@@ -16,8 +16,7 @@ fi
 #     fi
 # fi
 
-systemctl disable --now -q calibrecs
-rm /etc/systemd/system/calibrecs.service
+remove_unit calibrecs
 
 rm -rf /home/"$CALIBRE_LIBRARY_USER"/.config/calibrecs
 

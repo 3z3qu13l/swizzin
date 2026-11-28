@@ -1,78 +1,15 @@
 #!/bin/bash
 if [[ -f /install/.radarr.lock ]]; then
-    #shellcheck source=sources/functions/utils
-    . /etc/swizzin/sources/functions/radarr
-
-    #Move radarr installs to v3.net
     if grep -q "ExecStart=/usr/bin/mono" /etc/systemd/system/radarr.service; then
-        echo_info "Moving Radarr from mono to .Net"
-        #shellcheck source=sources/functions/utils
-        . /etc/swizzin/sources/functions/utils
-        [[ -z $radarrOwner ]] && radarrOwner=$(_get_master_username)
-
-        if [[ $(_radarr_version) = "mono-v3" ]]; then
-            echo_progress_start "Downloading release files"
-            urlbase="https://radarr.servarr.com/v1/update/master/updatefile?os=linux&runtime=netcore"
-            case "$(_os_arch)" in
-                "amd64") dlurl="${urlbase}&arch=x64" ;;
-                "armhf") dlurl="${urlbase}&arch=arm" ;;
-                "arm64") dlurl="${urlbase}&arch=arm64" ;;
-                *)
-                    echo_error "Arch not supported"
-                    exit 1
-                    ;;
-            esac
-            if ! curl "$dlurl" -L -o /tmp/radarr.tar.gz >> "$log" 2>&1; then
-                echo_error "Download failed, exiting"
-                exit 1
-            fi
-            echo_progress_done "Release downloaded"
-
-            isactive=$(systemctl is-active radarr)
-            echo_log_only "Radarr was $isactive"
-            [[ $isactive == "active" ]] && systemctl stop radarr -q
-
-            echo_progress_start "Removing old binaries"
-            rm -rf /opt/Radarr/
-            echo_progress_done "Binaries removed"
-
-            echo_progress_start "Extracting archive"
-            tar -xvf /tmp/Radarr.tar.gz -C /opt >> "$log" 2>&1
-            chown -R "$radarrOwner":"$radarrOwner" /opt/Radarr
-            echo_progress_done "Archive extracted"
-
-            echo_progress_start "Fixing Radarr systemd service"
-            # Watch out! If this sed runs, the updater will not trigger anymore. keep this at the bottom.
-            sed -i "s|ExecStart=/usr/bin/mono /opt/Radarr/Radarr.exe|ExecStart=/opt/Radarr/Radarr|g" /etc/systemd/system/radarr.service
-            systemctl daemon-reload
-            [[ $isactive == "active" ]] && systemctl start radarr -q
-            echo_progress_done "Service fixed and restarted"
-            echo_success "Radarr upgraded to .Net"
-
-            if [[ -f /install/.nginx.lock ]]; then
-                echo_progress_start "Upgrading nginx config for Radarr"
-                bash /etc/swizzin/scripts/nginx/radarr.sh
-                systemctl reload nginx -q
-                echo_progress_done "Nginx conf for Radarr upgraded"
-            fi
-
-        elif [[ $(_radarr_version) = "mono-v2" ]]; then
-            echo_warn "Radarr v0.2 is EOL and not supported. Please upgrade your radarr to v3. An attempt will be made to migrate to .Net core on the next \`box update\` run"
-            echo_docs "applications/radarr#migrating-to-v3-on-net-core"
-        fi
-    else
-        echo_log_only "Radarr's service is not pointing to mono"
+        echo_warn "Radarr still runs on mono, which is no longer supported: back up its settings, then reinstall it with box remove radarr && box install radarr"
     fi
     #Mandatory SSL Port change for Readarr
     #shellcheck source=sources/functions/utils
     . /etc/swizzin/sources/functions/utils
+    #shellcheck source=sources/functions/servarr
+    . /etc/swizzin/sources/functions/servarr
     app_name="radarr"
-    if [ -z "$radarrOwner" ]; then
-        if ! radarrOwner="$(swizdb get $app_name/owner)"; then
-            radarrOwner=$(_get_master_username)
-            ownerToSetInDB='True'
-        fi
-    else
+    if ! radarrOwner=$(servarr_owner "$app_name" "$radarrOwner"); then
         ownerToSetInDB='True'
     fi
 

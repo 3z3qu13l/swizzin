@@ -2,12 +2,12 @@
 # Nginx conf for *Arr
 # Flying sausages 2020
 # Refactored by Bakerboy448 2021
+#shellcheck source=sources/functions/servarr
+. /etc/swizzin/sources/functions/servarr
 master=$(_get_master_username)
 app_name="readarr"
 
-if ! READARR_OWNER="$(swizdb get $app_name/owner)"; then
-    READARR_OWNER=$master
-fi
+READARR_OWNER=$(servarr_owner "$app_name")
 user="$READARR_OWNER"
 
 app_port="8787"

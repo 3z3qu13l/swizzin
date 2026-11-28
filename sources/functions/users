@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# swizzin users: names and passwords, sudoers, home and web-server ACLs, running a command as another user
 
 # Returns a password for a user in case one exists.
 # If password is not found, returns with error code 1
@@ -224,25 +225,33 @@ function username_check() {
 # Writes the sudo rule that lets a user run their own services. sudo only takes A-Z, 0-9 and _ in an alias name
 # and stops working for every account on a bad or duplicate one, so the alias is the user name in hex
 function _write_user_sudoers() {
-    local user="$1" alias tmp
+    local user="$1" alias
     alias="SWIZZIN_$(printf %s "$user" | od -An -tx1 | tr -d ' 
 ' | tr a-f A-F)"
-    # sudo skips files with a dot in their name, so the draft is never read before it is checked
-    tmp=$(mktemp /etc/sudoers.d/.swizzin.XXXXXX) || return 1
-    cat > "$tmp" << SUD
-Cmnd_Alias   ${alias} = /bin/systemctl stop flood@${user}, /bin/systemctl restart flood@${user}, /bin/systemctl start flood@${user}, /bin/systemctl start rtorrent@${user}, /bin/systemctl stop rtorrent@${user}, /bin/systemctl restart rtorrent@${user}, /bin/systemctl start deluged@${user}, /bin/systemctl stop deluged@${user}, /bin/systemctl restart deluged@${user}, /bin/systemctl start deluge-web@${user}, /bin/systemctl stop deluge-web@${user}, /bin/systemctl restart deluge-web@${user}, /bin/systemctl start irssi@${user}, /bin/systemctl stop irssi@${user}, /bin/systemctl restart irssi@${user}, /bin/systemctl start qbittorrent@${user}, /bin/systemctl stop qbittorrent@${user}, /bin/systemctl restart qbittorrent@${user}, /usr/local/bin/swizzin/box chpasswd ${user}, /usr/local/bin/swizzin/box fix-downloads ${user}
+    _install_sudoers "$user" "Cmnd_Alias   ${alias} = /bin/systemctl stop flood@${user}, /bin/systemctl restart flood@${user}, /bin/systemctl start flood@${user}, /bin/systemctl start rtorrent@${user}, /bin/systemctl stop rtorrent@${user}, /bin/systemctl restart rtorrent@${user}, /bin/systemctl start deluged@${user}, /bin/systemctl stop deluged@${user}, /bin/systemctl restart deluged@${user}, /bin/systemctl start deluge-web@${user}, /bin/systemctl stop deluge-web@${user}, /bin/systemctl restart deluge-web@${user}, /bin/systemctl start irssi@${user}, /bin/systemctl stop irssi@${user}, /bin/systemctl restart irssi@${user}, /bin/systemctl start qbittorrent@${user}, /bin/systemctl stop qbittorrent@${user}, /bin/systemctl restart qbittorrent@${user}, /usr/local/bin/swizzin/box chpasswd ${user}, /usr/local/bin/swizzin/box fix-downloads ${user}
 
-${user}     ALL = (ALL) NOPASSWD: ${alias}
-SUD
-    if ! visudo -cqf "$tmp" > /dev/null 2>&1; then
-        rm -f "$tmp"
+${user}     ALL = (ALL) NOPASSWD: ${alias}" || {
         echo_error "The sudo rule for $user is invalid and was not installed"
         return 1
-    fi
-    chmod 440 "$tmp"
-    mv -f "$tmp" /etc/sudoers.d/"$user"
+    }
 }
 export -f _write_user_sudoers
+
+# _install_sudoers <name> <content> [<fallback>]: installs /etc/sudoers.d/<name> (0440) with <content>, or <fallback> when visudo refuses it; fails and keeps the current file otherwise
+function _install_sudoers() {
+    local tmp
+    # a broken or truncated sudoers file would lock sudo for everyone or drop the rules
+    # sudo skips files with a dot in their name, so the draft is never read before it is checked
+    tmp=$(mktemp /etc/sudoers.d/.swizzin.XXXXXX) || return 1
+    if printf '%s\n' "$2" > "$tmp" && chmod 0440 "$tmp" &&
+        { visudo -cqf "$tmp" > /dev/null 2>&1 || { [[ -n $3 ]] && printf '%s\n' "$3" > "$tmp" && visudo -cqf "$tmp" > /dev/null 2>&1; }; }; then
+        mv -f "$tmp" /etc/sudoers.d/"$1"
+    else
+        rm -f "$tmp"
+        return 1
+    fi
+}
+export -f _install_sudoers
 
 # Web login files: nginx reads them as the www-data user, the panel also reads /etc/htpasswd as swizzin.
 # Older installs put every swizzin user in the www-data group, so the group gets nothing and each reader is named in an ACL.

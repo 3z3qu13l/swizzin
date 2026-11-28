@@ -1,7 +1,9 @@
 #!/bin/bash
 
-systemctl disable --now -q bazarr
-rm -rf /etc/systemd/system/bazarr.service
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
+remove_unit bazarr
 
 rm -rf /opt/bazarr
 rm -rf /opt/.venv/bazarr
@@ -10,6 +12,6 @@ if [ -z "$(ls -A /opt/.venv)" ]; then
 fi
 
 rm -rf /etc/nginx/apps/bazarr.conf
-systemctl reload nginx
+nginx_reload
 
 rm -rf /install/.bazarr.lock

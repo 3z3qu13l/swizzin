@@ -10,33 +10,22 @@
 #   including (via compiler) GPL-licensed code must also be made available
 #   under the GPL along with build & install instructions.
 
-if [ -z "$LIDARR_OWNER" ]; then
-    if ! LIDARR_OWNER="$(swizdb get lidarr/owner)"; then
-        LIDARR_OWNER=$(_get_master_username)
-        echo_info "Setting Lidarr owner = $LIDARR_OWNER"
-        swizdb set "lidarr/owner" "$LIDARR_OWNER"
-    fi
-else
+#shellcheck source=sources/functions/servarr
+. /etc/swizzin/sources/functions/servarr
+
+if ! LIDARR_OWNER=$(servarr_owner lidarr "$LIDARR_OWNER"); then
     echo_info "Setting Lidarr owner = $LIDARR_OWNER"
     swizdb set "lidarr/owner" "$LIDARR_OWNER"
 fi
 
-install() {
+_lidarr_install() {
     user="$LIDARR_OWNER"
     apt_install mediainfo sqlite3 libchromaprint-tools
 
     echo_progress_start "Downloading release archive"
 
     urlbase="https://lidarr.servarr.com/v1/update/master/updatefile?os=linux&runtime=netcore"
-    case "$(_os_arch)" in
-        "amd64") dlurl="${urlbase}&arch=x64" ;;
-        "armhf") dlurl="${urlbase}&arch=arm" ;;
-        "arm64") dlurl="${urlbase}&arch=arm64" ;;
-        *)
-            echo_error "Arch not supported"
-            exit 1
-            ;;
-    esac
+    dlurl=$(servarr_url "$urlbase") || exit 1
 
     if ! curl "$dlurl" -L -o /tmp/lidarr.tar.gz >> "$log" 2>&1; then
         echo_error "Download failed, exiting"
@@ -72,7 +61,7 @@ LID
     chown -R "${user}": "/home/${user}/.tmp"
     chown -R "${user}": "/home/${user}/.config"
 }
-systemd() {
+_lidarr_systemd() {
     cat > /etc/systemd/system/lidarr.service << LID
 [Unit]
 Description=Lidarr
@@ -92,7 +81,7 @@ LID
     echo_progress_done "Services configured"
 }
 
-nginx() {
+_lidarr_nginx() {
     if [[ -f /install/.nginx.lock ]]; then
         echo_progress_start "Configuring nginx"
         sleep 10
@@ -104,10 +93,10 @@ nginx() {
     fi
 }
 
-install
+_lidarr_install
 config
-systemd
-nginx
+_lidarr_systemd
+_lidarr_nginx
 
 echo_progress_start "Enabling auto-start and executing Lidarr"
 systemctl enable -q --now lidarr

@@ -1,4 +1,5 @@
 #!/bin/bash
+# Plex: read and write Preferences.xml settings, claim the server for a plex.tv account
 
 function getPref() {
     local key="$1"

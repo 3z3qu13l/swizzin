@@ -6,24 +6,8 @@ if [[ -f /install/.jackett.lock ]]; then
     active=$(systemctl is-active jackett@$username)
 
     if grep -q "ExecStart=/usr/bin/mono" /etc/systemd/system/jackett@.service; then
-        echo_progress_start "Updating Jackett from mono"
-        jackettver=$(wget -q https://github.com/Jackett/Jackett/releases/latest -O - | grep -E \/tag\/ | grep -v repository | awk -F "[><]" '{print $3}')
-        sed -i 's|ExecStart.*|ExecStart=/bin/sh -c "/home/%i/Jackett/jackett_launcher.sh"|g' /etc/systemd/system/jackett@.service
-        systemctl daemon-reload
-        if [[ $active == "active" ]]; then
-            systemctl stop jackett@$username
-        fi
-        rm -rf /home/$username/Jackett
-        cd /home/$username
-        wget -q https://github.com/Jackett/Jackett/releases/download/$jackettver/Jackett.Binaries.LinuxAMDx64.tar.gz
-        tar -xvzf Jackett.Binaries.LinuxAMDx64.tar.gz > /dev/null 2>&1
-        rm -f Jackett.Binaries.LinuxAMDx64.tar.gz
-        chown ${username}:${username} -R Jackett
-        if [[ $active == "active" ]]; then
-            restartjackett=1
-        fi
-    else
-        :
+        echo_warn "Jackett still runs on mono, which is no longer supported: back up /home/${username}/.config/Jackett (box remove deletes it), then reinstall it with box remove jackett && box install jackett"
+        exit 0
     fi
 
     if ! grep -q "jackett_launcher" /etc/systemd/system/jackett@.service; then

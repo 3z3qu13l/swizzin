@@ -16,7 +16,7 @@ bash /usr/local/bin/swizzin/nginx/rutorrent.sh || {
     exit 1
 }
 
-if [[ ! -f /install.ffmpeg.lock ]]; then
+if [[ ! -f /install/.ffmpeg.lock ]]; then
     echo_progress_start "Installing ffmpeg for ruTorrent"
     #shellcheck source=sources/functions/ffmpeg
     . /etc/swizzin/sources/functions/ffmpeg
