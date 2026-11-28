@@ -12,10 +12,14 @@ swizdash_release="https://github.com/3z3qu13l/swizzin-dashboard/releases/downloa
 #shellcheck source=sources/functions/npm
 . /etc/swizzin/sources/functions/npm
 
+# The Node.js npm_install puts in /usr/bin, never the one in root's PATH: an nvm node there
+# may be too old, or sit in root's home, out of the service's reach, and change with nvm.
+swizdash_node="/usr/bin/node"
+
 # Node strips the TypeScript types of the server itself since version 23.6
 function _swizdash_node_ok() {
     local major
-    major=$(node -p 'process.versions.node.split(".")[0]' 2> /dev/null)
+    major=$("$swizdash_node" -p 'process.versions.node.split(".")[0]' 2> /dev/null)
     [[ -n $major && $major -ge 24 ]]
 }
 
@@ -162,7 +166,7 @@ Group=swizdash
 WorkingDirectory=${swizdash_dir}
 Environment=NODE_ENV=production
 Environment=SWIZDASH_MASTER=${master}
-ExecStart=$(command -v node) --disable-warning=ExperimentalWarning ${swizdash_dir}/server/main.ts
+ExecStart=${swizdash_node} --disable-warning=ExperimentalWarning ${swizdash_dir}/server/main.ts
 StateDirectory=swizdash
 StateDirectoryMode=0750
 Restart=on-failure
