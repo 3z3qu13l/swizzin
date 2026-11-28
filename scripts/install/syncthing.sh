@@ -19,35 +19,18 @@
 
 MASTER=$(cut -d: -f1 < /root/.master.info)
 
+#shellcheck source=sources/functions/syncthing
+. /etc/swizzin/sources/functions/syncthing
+
 echo_progress_start "Adding Syncthing Repository"
-apt_key_install https://syncthing.net/release-key.txt /usr/share/keyrings/syncthing-archive-keyring.gpg || {
-    echo_error "The Syncthing signing key could not be downloaded"
-    exit 1
-}
-echo "deb [signed-by=/usr/share/keyrings/syncthing-archive-keyring.gpg] http://apt.syncthing.net/ syncthing stable" > /etc/apt/sources.list.d/syncthing.list
+syncthing_apt_source || exit 1
 echo_progress_done "Repo added"
 apt_update
 
 apt_install syncthing
 
 echo_progress_start "Configuring Syncthing & Starting"
-cat > /etc/systemd/system/syncthing@.service << SYNC
-[Unit]
-Description=Syncthing - Open Source Continuous File Synchronization for %i
-Documentation=man:syncthing(1)
-After=network.target
-Wants=syncthing-inotify@.service
-
-[Service]
-User=%i
-ExecStart=/usr/bin/syncthing -no-browser -no-restart -logflags=0
-Restart=on-failure
-SuccessExitStatus=3 4
-RestartForceExitStatus=3 4
-
-[Install]
-WantedBy=multi-user.target
-SYNC
+syncthing_write_unit
 systemctl enable -q syncthing@${MASTER} 2>&1 | tee -a $log
 systemctl start syncthing@${MASTER} >> $log 2>&1
 echo_progress_done
@@ -58,7 +41,7 @@ if [[ -f /install/.nginx.lock ]]; then
     systemctl reload nginx
     echo_progress_done
 else
-    echo_info "Syncthing will run on port 8384"
+    echo_info "Syncthing's web page only answers on this server (127.0.0.1:8384): install nginx to open it from elsewhere"
 fi
 
 touch /install/.syncthing.lock

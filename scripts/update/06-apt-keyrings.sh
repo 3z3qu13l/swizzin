@@ -30,7 +30,7 @@ Resilio-Sync btsync.list /usr/share/keyrings/btsync-archive-keyring.gpg https://
 Jellyfin jellyfin.list /usr/share/keyrings/jellyfin-archive-keyring.gpg https://repo.jellyfin.org/$dist_id/jellyfin_team.gpg.key .jellyfin.lock
 jfa-go jfa-go.list /usr/share/keyrings/jfa-go-archive-keyring.gpg https://apt.hrfee.dev/hrfee.pubkey.gpg .jfago.lock
 Plex plex.list /usr/share/keyrings/plexmediaserver.v2.gpg https://downloads.plex.tv/plex-keys/PlexSign.v2.key .plex.lock
-Syncthing syncthing.list /usr/share/keyrings/syncthing-archive-keyring.gpg https://syncthing.net/release-key.txt .syncthing.lock
+Syncthing syncthing.list /usr/share/keyrings/syncthing-archive-keyring.gpg https://syncthing.net/release-key.gpg .syncthing.lock
 Webmin webmin.list /usr/share/keyrings/webmin-archive-keyring.gpg https://download.webmin.com/developers-key.asc .webmin.lock
 Ombi ombi.list /usr/share/keyrings/ombi-archive-keyring.gpg https://apt.ombi.app/pub.key .ombi.lock
 x2go x2go.list /usr/share/keyrings/x2go-archive-keyring.gpg https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x972FD88FA0BAFB578D0476DFE1F958385BFE2B6E .x2go.lock

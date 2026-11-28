@@ -1,0 +1,43 @@
+#!/bin/bash
+# Syncthing helpers, shared by its install, update and upgrade scripts
+
+syncthing_list=/etc/apt/sources.list.d/syncthing.list
+syncthing_keyring=/usr/share/keyrings/syncthing-archive-keyring.gpg
+syncthing_pref=/etc/apt/preferences.d/syncthing
+syncthing_unit=/etc/systemd/system/syncthing@.service
+
+# Syncthing's own apt repository. The "stable" channel stopped at v1 (1.30.0), v2 is on "stable-v2"
+function syncthing_apt_source() {
+    apt_key_install https://syncthing.net/release-key.gpg "$syncthing_keyring" || {
+        echo_error "The Syncthing signing key could not be downloaded"
+        return 1
+    }
+    echo "deb [signed-by=${syncthing_keyring}] https://apt.syncthing.net/ syncthing stable-v2" > "$syncthing_list"
+    # Debian and Ubuntu ship an older syncthing package: always take Syncthing's
+    cat > "$syncthing_pref" << PIN
+Package: *
+Pin: origin apt.syncthing.net
+Pin-Priority: 990
+PIN
+}
+
+# v2 refuses the single-dash options v1 accepted; "serve" with double dashes works on both
+function syncthing_write_unit() {
+    cat > "$syncthing_unit" << SYNC
+[Unit]
+Description=Syncthing - Open Source Continuous File Synchronization for %i
+Documentation=man:syncthing(1)
+After=network.target
+
+[Service]
+User=%i
+ExecStart=/usr/bin/syncthing serve --no-browser --no-restart
+Restart=on-failure
+SuccessExitStatus=3 4
+RestartForceExitStatus=3 4
+
+[Install]
+WantedBy=multi-user.target
+SYNC
+    systemctl daemon-reload
+}
