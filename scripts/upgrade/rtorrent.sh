@@ -88,7 +88,7 @@ else
     rtorrent_apt
     echo_progress_done
 fi
-# the install steps do not check make install, fpm or dpkg
+# the install steps do not check make install
 installed=$(dpkg-query -W -f='${db:Status-Status} ${Version}' rtorrent 2> /dev/null)
 if [[ $installed != "installed "* ]] || [[ $rtorrentver != repo && $installed != "installed $rtorrentver" ]]; then
     echo_error "The new rTorrent was not installed, check $log"
