@@ -2,7 +2,13 @@
 #shellcheck source=sources/functions/syncthing
 . /etc/swizzin/sources/functions/syncthing
 
-systemctl disable -q --now 'syncthing@*' >> "$log" 2>&1
+# loaded instances, plus enabled ones that are not loaded
+for unit in $( (
+    systemctl list-units 'syncthing@*' --all --plain --no-legend | awk '{print $1}'
+    find /etc/systemd/system -path '*.wants/syncthing@*.service' -printf '%f\n'
+) | sort -u); do
+    systemctl disable -q --now "$unit" >> "$log" 2>&1
+done
 apt_remove --purge syncthing
 rm -f "$syncthing_unit"
 systemctl daemon-reload

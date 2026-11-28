@@ -74,6 +74,7 @@ _unset_apt_args() {
     unset _apt_skip_checks
     unset _apt_remove_purge
     unset _apt_install_recommends
+    unset _apt_only_upgrade
     unset _apt_packages
     echo_log_only "Variables unset"
 }
@@ -310,7 +311,8 @@ apt_install() {
     fi
 
     if [[ $_apt_only_upgrade == "true" ]]; then
-        flags+="--only-upgrade "
+        # an upgrade stops rather than remove a package to solve dependencies
+        flags+="--only-upgrade --no-remove "
         action_msg="upgrade"
     fi
 

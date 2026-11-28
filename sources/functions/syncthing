@@ -5,6 +5,8 @@ syncthing_list=/etc/apt/sources.list.d/syncthing.list
 syncthing_keyring=/usr/share/keyrings/syncthing-archive-keyring.gpg
 syncthing_pref=/etc/apt/preferences.d/syncthing
 syncthing_unit=/etc/systemd/system/syncthing@.service
+# the unit swizzin wrote before v2; one edited by hand is left to its owner
+syncthing_v1_exec='ExecStart=/usr/bin/syncthing -no-browser -no-restart -logflags=0'
 
 # Syncthing's own apt repository. The "stable" channel stopped at v1 (1.30.0), v2 is on "stable-v2"
 function syncthing_apt_source() {

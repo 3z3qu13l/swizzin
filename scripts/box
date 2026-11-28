@@ -232,7 +232,7 @@ function _upgrade() {
 function _upgrade_all() {
     # These ask which version to build, reset the nginx config, migrate Sonarr v2, or set up plexupdate interactively.
     # curl has no lock file, so it is never picked up here.
-    local skipped=(deluge nginx plex qbittorrent rtorrent sonarr)
+    local skipped=(deluge nginx plex qbittorrent rtorrent sonarr syncthing)
     local apps=() failed=() app script
     for script in /usr/local/bin/swizzin/upgrade/*.sh; do
         app=$(basename "$script" .sh)
