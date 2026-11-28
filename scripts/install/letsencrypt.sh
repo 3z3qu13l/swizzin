@@ -176,10 +176,6 @@ echo_progress_start "Installing certificate"
 if [[ $main == yes ]]; then
     sed -i "s/ssl_certificate .*/ssl_certificate \/etc\/nginx\/ssl\/${hostname}\/fullchain.pem;/g" /etc/nginx/sites-enabled/default
     sed -i "s/ssl_certificate_key .*/ssl_certificate_key \/etc\/nginx\/ssl\/${hostname}\/key.pem;/g" /etc/nginx/sites-enabled/default
-    # Homepage has its own server block, reuse the main certificate
-    if [[ -f /etc/nginx/sites-enabled/homepage ]]; then
-        bash /usr/local/bin/swizzin/nginx/homepage.sh
-    fi
 fi
 echo_progress_done "Certificate installed"
 

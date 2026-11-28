@@ -70,7 +70,6 @@ function _install() {
         echo_info "Installing ${result}"
         bash "/usr/local/bin/swizzin/install/${result}.sh"
     done
-    _homepage_refresh
 
     rm results
     _function
@@ -91,7 +90,6 @@ function _remove() {
         echo_info -e "Removing ${result}"
         bash /usr/local/bin/swizzin/remove/${result}.sh
     done
-    _homepage_refresh
     rm results
     _function
 }
@@ -112,11 +110,11 @@ function _cli() {
             else
                 echo_warn "Package $app not found"
                 [[ $app == airsonic ]] && echo_info "Airsonic is archived upstream since 2021: navidrome serves the same Subsonic apps"
+                [[ $app == homepage ]] && echo_info "Homepage is replaced by swizdash: box install swizdash"
                 failed+=("$app")
             fi
         fi
     done
-    _homepage_refresh
     if ((${#failed[@]})); then
         echo_error "Not installed: ${failed[*]}"
         return 1
@@ -127,7 +125,9 @@ function _clr() {
     arg=("$@")
     packages=("${arg[@]:1}")
     for app in "${packages[@]}"; do
-        if [[ -f /install/.$app.lock ]]; then
+        if [[ -f /install/.$app.lock && ! -f /usr/local/bin/swizzin/remove/$app.sh ]]; then
+            echo_warn "box can no longer remove $app: remove it by hand"
+        elif [[ -f /install/.$app.lock ]]; then
             schedule_remove="true"
             echo_info "Removing $app"
             bash /usr/local/bin/swizzin/remove/$app.sh
@@ -139,15 +139,6 @@ function _clr() {
     if [[ $schedule_remove = "true" ]]; then
         apt_autoremove
     fi
-    _homepage_refresh
-}
-
-# Homepage lists the installed apps and holds the master password, keep it in sync
-function _homepage_refresh() {
-    [[ -f /install/.homepage.lock ]] || return 0
-    #shellcheck source=sources/functions/homepage
-    . /etc/swizzin/sources/functions/homepage
-    homepage_services
 }
 
 function _update() {
@@ -653,7 +644,6 @@ function _chpasswd() {
             esac
         fi
     done
-    _homepage_refresh
     echo_success "Password for $user changed"
     pass=""
     unset pass
