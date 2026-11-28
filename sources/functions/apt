@@ -74,6 +74,7 @@ _unset_apt_args() {
     unset _apt_skip_checks
     unset _apt_remove_purge
     unset _apt_install_recommends
+    unset _apt_only_upgrade
     unset _apt_packages
     echo_log_only "Variables unset"
 }
@@ -280,14 +281,16 @@ export -f apt_upgrade
 apt_install() {
     _apt_logcheck_mark
     _process_apt_args "$@"
-    # Check existing packages
-    apt_uninstalled=()
-    for package in ${_apt_packages[@]}; do
-        if ! check_installed $package; then
-            apt_uninstalled+=($package)
-        fi
-    done
-    _apt_packages=("${apt_uninstalled[@]}")
+    # Check existing packages; an upgrade is only for installed ones, apt itself skips the others
+    if [[ $_apt_only_upgrade != "true" ]]; then
+        apt_uninstalled=()
+        for package in ${_apt_packages[@]}; do
+            if ! check_installed $package; then
+                apt_uninstalled+=($package)
+            fi
+        done
+        _apt_packages=("${apt_uninstalled[@]}")
+    fi
     if [[ -z ${_apt_packages[*]} ]]; then
         return
     fi
@@ -308,7 +311,8 @@ apt_install() {
     fi
 
     if [[ $_apt_only_upgrade == "true" ]]; then
-        flags+="--only-upgrade "
+        # an upgrade stops rather than remove a package to solve dependencies
+        flags+="--only-upgrade --no-remove "
         action_msg="upgrade"
     fi
 
