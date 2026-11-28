@@ -25,13 +25,6 @@ if [[ -n $noexec ]]; then
     noexec=1
 fi
 isdeb=$(dpkg -l | grep rtorrent)
-echo_progress_start "Removing old rTorrent binaries and libraries ... "
-if [[ -z $isdeb ]]; then
-    remove_rtorrent_legacy
-else
-    remove_rtorrent
-fi
-echo_progress_done
 
 echo_progress_start "Checking rTorrent Dependencies ... "
 depends_rtorrent
@@ -48,6 +41,42 @@ if [[ ! $rtorrentver == repo ]]; then
     echo_progress_start "Building xmlrpc-c from source ... "
     build_xmlrpc-c
     echo_progress_done
+fi
+
+# From here until the new rTorrent is installed there is none to start: put the previous one back if the upgrade stops.
+# Its packages are copied aside, a rebuild of the same version overwrites them in /root/dist
+old_debs=()
+rollback=$(mktemp -d)
+for p in libtorrent-rakshasa rtorrent; do
+    v=$(dpkg-query -W -f='${Version}' "$p" 2> /dev/null)
+    [[ -f /root/dist/${p}_${v}.deb ]] && cp "/root/dist/${p}_${v}.deb" "$rollback/" && old_debs+=("$rollback/${p}_${v}.deb")
+done
+old_repo=$(dpkg -l | grep -P 'libtorrent\d+')
+restore_old_rtorrent() {
+    if [[ ${#old_debs[@]} -gt 0 ]]; then
+        echo_warn "rTorrent upgrade failed, reinstalling the previous version"
+        dpkg -i "${old_debs[@]}" >> "$log" 2>&1 && apt-mark hold rtorrent >> "$log" 2>&1
+    elif [[ -n $old_repo ]]; then
+        echo_warn "rTorrent upgrade failed, reinstalling rtorrent with apt-get"
+        apt-get remove -y -q libtorrent-rakshasa >> "$log" 2>&1
+        apt_install rtorrent
+    else
+        echo_error "rTorrent upgrade failed and no previous package was found to reinstall: run box upgrade rtorrent again"
+    fi
+    rm -rf "$rollback"
+    if [[ -n $noexec ]]; then mount -o remount,noexec /tmp; fi
+}
+trap restore_old_rtorrent EXIT
+
+echo_progress_start "Removing old rTorrent binaries and libraries ... "
+if [[ -z $isdeb ]]; then
+    remove_rtorrent_legacy
+else
+    remove_rtorrent
+fi
+echo_progress_done
+
+if [[ ! $rtorrentver == repo ]]; then
     echo_progress_start "Building libtorrent from source ... "
     build_libtorrent_rakshasa
     echo_progress_done
@@ -59,6 +88,14 @@ else
     rtorrent_apt
     echo_progress_done
 fi
+# the install steps do not check make install, fpm or dpkg
+installed=$(dpkg-query -W -f='${db:Status-Status} ${Version}' rtorrent 2> /dev/null)
+if [[ $installed != "installed "* ]] || [[ $rtorrentver != repo && $installed != "installed $rtorrentver" ]]; then
+    echo_error "The new rTorrent was not installed, check $log"
+    exit 1
+fi
+trap - EXIT
+rm -rf "$rollback"
 
 if [[ -n $noexec ]]; then
     mount -o remount,noexec /tmp

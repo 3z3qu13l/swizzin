@@ -1,5 +1,20 @@
 #!/bin/bash
-# Builds a newer curl and c-ares from source, for box upgrade curl
+# curl and c-ares built from source into /usr/local (rTorrent, box upgrade curl), and their removal once broken
+
+# Removes the curl and c-ares built in /usr/local once one of their libraries is gone (a Debian upgrade
+# replaces libldap-2.5 with 2.6): ld.so loads them before the system ones, so curl and cmake would fail
+curl_local_remove_broken() {
+    local f
+    for f in /usr/local/bin/curl /usr/local/lib/libcurl.so.4 /usr/local/lib/libcares.so.2; do
+        if [[ -e $f ]] && ldd "$f" 2> /dev/null | grep -q 'not found'; then
+            echo_warn "The curl built in /usr/local no longer finds its libraries, removing it: the system curl takes over until the next box upgrade rtorrent or box upgrade curl"
+            rm -rf /usr/local/bin/{curl,curl-config,wcurl,adig,ahost} /usr/local/lib/{libcurl,libcares}.* \
+                /usr/local/lib/pkgconfig/{libcurl,libcares}.pc /usr/local/lib/cmake/{CURL,c-ares} /usr/local/include/{curl,ares*.h}
+            ldconfig
+            return
+        fi
+    done
+}
 
 configure_curl() {
     apt_install cmake libssl-dev libnghttp2-dev libzstd-dev libldap2-dev libssh2-1-dev libpsl-dev libbrotli-dev
