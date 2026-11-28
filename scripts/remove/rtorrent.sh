@@ -29,4 +29,5 @@ for a in rutorrent flood; do
     fi
 done
 rm /etc/systemd/system/rtorrent@.service
+systemctl daemon-reload
 rm /install/.rtorrent.lock

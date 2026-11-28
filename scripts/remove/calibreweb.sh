@@ -1,11 +1,12 @@
 #!/bin/bash
 
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 rm -rf /opt/.venv/calibreweb
 rm -rf /opt/calibreweb
 
-systemctl disable --now -q calibreweb
-rm /etc/systemd/system/calibreweb.service
-systemctl daemon-reload
+remove_unit calibreweb
 
 if [[ -f /install/.nginx.lock ]]; then
     rm /etc/nginx/apps/calibreweb.conf

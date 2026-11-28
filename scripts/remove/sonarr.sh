@@ -1,13 +1,14 @@
 #!/bin/bash
 
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 if ! user="$(swizdb get sonarr/owner)"; then
     user=$(grep User= /etc/systemd/system/sonarr.service | cut -d= -f2)
 fi
 ask "Would you like to purge the configuration?" Y && purge=true
 
-systemctl disable --now -q sonarr
-rm -f /etc/systemd/system/sonarr.service
-systemctl daemon-reload -q
+remove_unit sonarr
 rm -rf /opt/Sonarr
 [[ $purge == true ]] && rm -rf "/home/${user}/.config/Sonarr"
 # left by Sonarr v3 installs on mono; box's apt_autoremove removes them once marked auto

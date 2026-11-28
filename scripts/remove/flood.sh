@@ -2,6 +2,9 @@
 # Flood uninstaller
 # Author: liara
 
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 readarray -t users < <(_get_user_list)
 
 for user in ${users[@]}; do
@@ -14,10 +17,11 @@ done
 if [[ -f /install/.flood.lock ]]; then
     rm -f /etc/nginx/apps/flood.conf
     rm -f /etc/nginx/conf.d/*.flood.conf
-    systemctl reload nginx
+    nginx_reload
 fi
 
 npm -g remove flood >> "$log" 2>&1
 
 rm -f /etc/systemd/system/flood@.service
+systemctl daemon-reload
 rm -f /install/.flood.lock

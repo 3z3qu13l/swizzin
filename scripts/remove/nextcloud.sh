@@ -1,10 +1,13 @@
 #!/bin/bash
 # nextcloud uninstaller
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 echo_query "Please enter mysql root password so that nextcloud database and user can be dropped." "hidden"
 read -s 'password'
 rm -rf /srv/nextcloud
 rm /etc/nginx/apps/nextcloud.conf
-systemctl reload nginx
+nginx_reload
 
 if ask "Would you like to also remove the mysql/mariadb server?" N; then
     apt_remove mariadb-server --purge

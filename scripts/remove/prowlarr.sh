@@ -1,14 +1,16 @@
 #!/bin/bash
 
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+#shellcheck source=sources/functions/servarr
+. /etc/swizzin/sources/functions/servarr
+
 app_name="prowlarr"
 
-if ! PROWLARR_OWNER="$(swizdb get $app_name/owner)"; then
-    PROWLARR_OWNER=$(_get_master_username)
-fi
+PROWLARR_OWNER=$(servarr_owner "$app_name")
 
 user="$PROWLARR_OWNER"
 app_configdir="/home/$user/.config/${app_name^}"
-app_servicefile="${app_name}.service"
 app_dir="/opt/${app_name^}"
 app_lockname="$app_name"
 
@@ -18,9 +20,7 @@ else
     purgeapp="False"
 fi
 
-systemctl disable --now -q "$app_servicefile"
-rm /etc/systemd/system/"$app_servicefile"
-systemctl daemon-reload -q
+remove_unit "$app_name"
 rm -rf "$app_dir"
 
 if [[ "$purgeapp" = "True" ]]; then

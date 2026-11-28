@@ -1,7 +1,8 @@
 #!/bin/bash
-systemctl disable --now -q radarr
-rm /etc/systemd/system/radarr.service
-systemctl daemon-reload -q
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
+remove_unit radarr
 rm -rf /opt/Radarr
 
 if [[ -f /install/.nginx.lock ]]; then

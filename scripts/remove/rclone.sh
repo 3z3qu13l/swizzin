@@ -12,6 +12,7 @@ done
 rm_if_exists /usr/bin/rclone
 rm_if_exists /usr/sbin/rclone
 rm_if_exists /etc/systemd/system/rclone@.service
+systemctl daemon-reload
 rm_if_exists /usr/local/share/man/man1/rclone.1
 if [[ -f /install/.rclone-allow-other ]]; then
     sed -i 's/^user_allow_other$/#user_allow_other/' /etc/fuse.conf

@@ -5,9 +5,7 @@
 . /etc/swizzin/sources/functions/utils
 
 user=$(_get_master_username)
-systemctl disable -q --now filebrowserquantum >> "$log" 2>&1
-rm_if_exists /etc/systemd/system/filebrowserquantum.service
-systemctl daemon-reload
+remove_unit filebrowserquantum
 rm_if_exists /opt/filebrowserquantum
 rm_if_exists "/home/${user}/.config/filebrowserquantum"
 if [[ -f /install/.nginx.lock ]]; then

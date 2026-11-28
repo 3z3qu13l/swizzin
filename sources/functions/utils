@@ -1,5 +1,6 @@
 #!/bin/bash
-# Small shared helpers: rar, rm_if_exists, port, RAM and swap checks, installed apps, latest GitHub release
+# Small shared helpers: rar, rm_if_exists, port, RAM and swap checks, installed apps, latest GitHub release,
+# nginx reload, unit removal, per-user binary apps
 
 # Handles rar installation for all distros and architectures
 function install_rar() {
@@ -126,4 +127,65 @@ function legacy_template_unit() {
     else
         echo_warn "${name} still runs from its ${app}@ service, which is no longer supported. Back up its settings, run systemctl disable --now ${app}@$(_get_master_username) and delete /etc/systemd/system/${app}@.service, then box remove ${app} && box install ${app}"
     fi
+}
+
+# github_release_asset <owner/repo> <regex>: prints the first download URL of the latest release matching the regex (grep -E). Nothing, and a failure, when there is none
+function github_release_asset() {
+    local url
+    url=$(curl -fsSL "https://api.github.com/repos/${1}/releases/latest" | jq -r '.assets[]?.browser_download_url' | grep -E -- "$2" | head -n 1)
+    [[ -n $url ]] || return 1
+    echo "$url"
+}
+
+# nginx_reload: reloads nginx when it is installed, output to $log
+function nginx_reload() {
+    if [[ -f /install/.nginx.lock ]]; then
+        systemctl reload nginx >> "$log" 2>&1
+    fi
+}
+
+# remove_unit <unit>...: stops and disables each service, deletes /etc/systemd/system/<unit>.service, then reloads systemd once
+function remove_unit() {
+    local unit
+    for unit in "$@"; do
+        systemctl disable --now -q "$unit" >> "$log" 2>&1
+        rm -f /etc/systemd/system/"$unit".service
+    done
+    systemctl daemon-reload
+}
+
+# upgrade_peruser_app <app>: downloads the latest release with <app>_download_latest (sources/functions/<app>), then restarts <app>@<user> of every user
+function upgrade_peruser_app() {
+    local app=$1 user
+    if [[ ! -f /install/.${app}.lock ]]; then
+        echo_error "${app} doesn't appear to be installed!"
+        exit 1
+    fi
+    #shellcheck source=/dev/null
+    . /etc/swizzin/sources/functions/"$app"
+    "${app}_download_latest"
+    echo_progress_start "Restarting ${app} services"
+    for user in $(_get_user_list); do
+        echo_log_only "Restarting ${app} for $user"
+        systemctl try-restart "${app}@${user}"
+    done
+    echo_progress_done "Service restarted"
+    echo_success "${app} upgraded"
+}
+
+# remove_peruser_app <app> [<file>...]: stops <app>@<user> and deletes ~/.config/<app> of every user, then the unit, /usr/bin/<app>, the given files, the nginx confs and the lock
+function remove_peruser_app() {
+    local app=$1 user
+    shift
+    for user in $(_get_user_list); do
+        systemctl disable --now -q "${app}@${user}"
+        rm -rf "/home/${user}/.config/${app}"
+    done
+    rm -f "/etc/systemd/system/${app}@.service" "/usr/bin/${app}" "$@"
+    systemctl daemon-reload -q
+    if [[ -f /install/.nginx.lock ]]; then
+        rm -f "/etc/nginx/apps/${app}.conf" /etc/nginx/conf.d/*."${app}".conf
+        systemctl reload nginx >> "$log" 2>&1
+    fi
+    rm "/install/.${app}.lock"
 }

@@ -34,7 +34,10 @@ _install() {
             ;;
     esac
 
-    dlurl="$(curl -sNL https://api.github.com/repos/filebrowser/filebrowser/releases/latest | jq -r '.assets[]?.browser_download_url' | grep linux-"${fb_arch}")"
+    dlurl=$(github_release_asset filebrowser/filebrowser "linux-${fb_arch}.*\.tar\.gz$") || {
+        echo_error "Could not find the latest File Browser release for ${fb_arch}"
+        exit 1
+    }
     wget -O "/home/${username}/filebrowser.tar.gz" "$dlurl" >> $log 2>&1 || {
         echo_error "Failed to download archive"
         exit 1

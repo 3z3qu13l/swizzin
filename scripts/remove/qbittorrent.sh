@@ -11,6 +11,7 @@ for user in ${users[@]}; do
     (cd / && runuser -u "${user}" -- rm -rf /home/${user}/.config/qBittorrent)
 done
 rm -f /etc/systemd/system/qbittorrent@.service
+systemctl daemon-reload
 dpkg -r qbittorrent-nox > /dev/null 2>&1
 dpkg -r libtorrent-rasterbar > /dev/null 2>&1
 

@@ -4,15 +4,14 @@
 
 #shellcheck source=sources/functions/utils
 . /etc/swizzin/sources/functions/utils
+#shellcheck source=sources/functions/servarr
+. /etc/swizzin/sources/functions/servarr
 
 app_name="sonarr"
-if [ -z "$SONARR_OWNER" ]; then
-    if ! SONARR_OWNER="$(swizdb get "$app_name/owner")"; then
-        SONARR_OWNER="$(_get_master_username)"
-        swizdb set "$app_name/owner" "$SONARR_OWNER"
-    fi
-else
+if [ -n "$SONARR_OWNER" ]; then
     echo_info "Setting ${app_name^} owner = $SONARR_OWNER"
+fi
+if ! SONARR_OWNER=$(servarr_owner "$app_name" "$SONARR_OWNER"); then
     swizdb set "$app_name/owner" "$SONARR_OWNER"
 fi
 
@@ -43,15 +42,7 @@ _install() {
     echo_progress_start "Downloading release archive"
 
     urlbase="https://services.sonarr.tv/v1/download/develop/latest?version=4&os=linux"
-    case "$(_os_arch)" in
-        "amd64") dlurl="${urlbase}&arch=x64" ;;
-        "armhf") dlurl="${urlbase}&arch=arm" ;;
-        "arm64") dlurl="${urlbase}&arch=arm64" ;;
-        *)
-            echo_error "Arch not supported"
-            exit 1
-            ;;
-    esac
+    dlurl=$(servarr_url "$urlbase") || exit 1
 
     if ! curl "$dlurl" -L -o "/tmp/$app_name.tar.gz" >> "$log" 2>&1; then
         echo_error "Download failed, exiting"

@@ -224,7 +224,7 @@ An application is a set of scripts named after it (`<app>` below), which `box` f
 | Script | When | What it does |
 |---|---|---|
 | `scripts/install/<app>.sh` | always | installs, then touches `/install/.<app>.lock` as its last step |
-| `scripts/remove/<app>.sh` | always | stops and disables the units, deletes them and runs `systemctl daemon-reload`, deletes `/opt/<app>` (the user's config only after `ask`), the nginx conf (reload only if `/install/.nginx.lock` exists), its `swizdb` keys, then the lock |
+| `scripts/remove/<app>.sh` | always | stops and disables the units, deletes them and runs `systemctl daemon-reload` (`remove_unit`), deletes `/opt/<app>` (the user's config only after `ask`), the nginx conf (reload only if `/install/.nginx.lock` exists: `nginx_reload`), its `swizdb` keys, then the lock |
 | `scripts/nginx/<app>.sh` | the app has a web UI | writes `/etc/nginx/apps/<app>.conf` behind the master's basic auth; the caller reloads nginx |
 | `scripts/upgrade/<app>.sh` | it is not upgraded by apt | starts with the lock check, never asks a question when `SWIZZIN_UPGRADE_ALL` is set |
 | `scripts/tests/<app>.sh` | `_basetest` does not fit | `_basetest` checks a unit named `<app>`, the port in `proxy_pass` and `/<app>` behind nginx |
@@ -232,6 +232,7 @@ An application is a set of scripts named after it (`<app>` below), which `box` f
 
 - Code that install, update and upgrade share goes in `sources/functions/<app>`, with a header line and one line per function (arguments, effect): see `sources/functions/syncthing`.
 - Use the shared helpers rather than your own: `_get_master_username`, `_get_user_list`, `_get_user_password`, `apt_install`/`apt_remove`/`apt_key_install`, `github_latest_version`, `port <low> <high>`, `swizdb`, `_os_codename`/`_os_distro`/`_os_arch`, and the `echo_*` functions with `>> "$log" 2>&1`.
+- In `sources/functions/utils` (sourced by the script): `github_release_asset <owner/repo> <regex>` for a release download URL, `remove_unit <unit>...` and `nginx_reload` for remove scripts, `upgrade_peruser_app <app>` and `remove_peruser_app <app> [<file>...]` for the per-user binary apps (autobrr, qui, netronome, shinkro). `sources/functions/servarr` has `servarr_url <urlbase>` and `servarr_owner <app> [<owner>]` for the *arr apps, `sources/functions/users` has `_install_sudoers <name> <content> [<fallback>]` for a sudoers drop-in checked by `visudo`.
 - Every question needs an environment variable that answers it, prefixed with the app's name (`<APP>_OWNER`, ports).
 - Per-user apps also need their branch in the user commands of `scripts/box` (adduser, deluser, chpasswd).
 - Add a description to `sources/lang_en` (`box list`), and an entry to `catalog/apps.json` in [swizzin-dashboard](https://github.com/3z3qu13l/swizzin-dashboard), then a dashboard release and its version in `sources/functions/swizdash`.

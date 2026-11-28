@@ -4,6 +4,8 @@
 
 #shellcheck source=sources/functions/utils
 . /etc/swizzin/sources/functions/utils
+#shellcheck source=sources/functions/servarr
+. /etc/swizzin/sources/functions/servarr
 
 _install_radarr() {
     apt_install curl mediainfo sqlite3
@@ -13,15 +15,7 @@ _install_radarr() {
     chown -R "$radarrOwner":"$radarrOwner" /home/$radarrOwner/.config
 
     echo_progress_start "Downloading release archive"
-    case "$(_os_arch)" in
-        "amd64") dlurl="https://radarr.servarr.com/v1/update/master/updatefile?os=linux&runtime=netcore&arch=x64" ;;
-        "armhf") dlurl="https://radarr.servarr.com/v1/update/master/updatefile?os=linux&runtime=netcore&arch=arm" ;;
-        "arm64") dlurl="https://radarr.servarr.com/v1/update/master/updatefile?os=linux&runtime=netcore&arch=arm64" ;;
-        *)
-            echo_error "Arch not supported"
-            exit 1
-            ;;
-    esac
+    dlurl=$(servarr_url "https://radarr.servarr.com/v1/update/master/updatefile?os=linux&runtime=netcore") || exit 1
 
     if ! curl "$dlurl" -L -o /tmp/Radarr.tar.gz >> "$log" 2>&1; then
         echo_error "Download failed, exiting"

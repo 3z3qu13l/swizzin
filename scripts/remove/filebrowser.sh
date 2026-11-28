@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 #
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 username="$(cut -d: -f1 < /root/.master.info)"
 #
 function remove_filebrowser() {
-    systemctl stop -q "filebrowser.service"
-    #
-    systemctl disable -q "filebrowser.service"
-    #
-    rm -f "/etc/systemd/system/filebrowser.service"
+    remove_unit filebrowser
     #
     kill -9 $(ps xU ${username} | grep "/home/${username}/bin/filebrowser -d /home/${username}/.config/Filebrowser/filebrowser.db$" | awk '{print $1}') > /dev/null 2>&1
     #

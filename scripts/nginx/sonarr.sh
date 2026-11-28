@@ -3,12 +3,12 @@
 # Flying sausages 2020
 # Refactored by Bakerboy448 2021
 # Refactored by Brett 2023
+#shellcheck source=sources/functions/servarr
+. /etc/swizzin/sources/functions/servarr
 master=$(_get_master_username)
 app_name="sonarr"
 
-if ! SONARR_OWNER="$(swizdb get $app_name/owner)"; then
-    SONARR_OWNER=$master
-fi
+SONARR_OWNER=$(servarr_owner "$app_name")
 user="$SONARR_OWNER"
 
 app_port="8989"

@@ -11,6 +11,9 @@
 #   including (via compiler) GPL-licensed code must also be made available
 #   under the GPL along with build & install instructions.
 #
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 users=($(cut -d: -f1 < /etc/htpasswd))
 for u in "${users[@]}"; do
     systemctl disable --now -q deluged@$u
@@ -34,7 +37,7 @@ fi
 rm -f /etc/nginx/apps/deluge.conf > /dev/null 2>&1
 rm -f /etc/nginx/apps/dindex.conf > /dev/null 2>&1
 rm -f /etc/nginx/conf.d/*.deluge.conf > /dev/null 2>&1
-if [[ -f /install/.nginx.lock ]]; then systemctl reload nginx; fi
+nginx_reload
 
 rm -rf /usr/lib/python2.7/dist-packages/deluge*
 

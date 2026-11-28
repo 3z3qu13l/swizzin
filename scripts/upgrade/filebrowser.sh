@@ -9,8 +9,6 @@ fi
 . /etc/swizzin/sources/functions/utils
 username=$(_get_master_username)
 
-mv /home/${username}/bin/filebrowser /home/${username}/bin/filebrowser.bak
-
 case "$(_os_arch)" in
     "amd64" | "arm64")
         fb_arch="$(_os_arch)"
@@ -24,12 +22,19 @@ case "$(_os_arch)" in
         ;;
 esac
 
-dlurl="$(curl -sNL https://api.github.com/repos/filebrowser/filebrowser/releases/latest | jq -r '.assets[]?.browser_download_url' | grep linux-"${fb_arch}")"
+dlurl=$(github_release_asset filebrowser/filebrowser "linux-${fb_arch}.*\.tar\.gz$") || {
+    echo_error "Could not find the latest File Browser release for ${fb_arch}"
+    exit 1
+}
+
+mv /home/${username}/bin/filebrowser /home/${username}/bin/filebrowser.bak
 wget -O "/home/${username}/filebrowser.tar.gz" "$dlurl" >> $log 2>&1 || {
+    mv "/home/${username}/bin/filebrowser.bak" "/home/${username}/bin/filebrowser"
     echo_error "Failed to download archive"
     exit 1
 }
 tar -xvzf "/home/${username}/filebrowser.tar.gz" --exclude LICENSE --exclude README.md -C "/home/${username}/bin" >> $log 2>&1 || {
+    mv "/home/${username}/bin/filebrowser.bak" "/home/${username}/bin/filebrowser"
     echo_error "Failed to extract downloaded file"
     exit 1
 }

@@ -9,13 +9,10 @@ if [[ -f /install/.sonarr.lock ]]; then
     #Mandatory SSL Port change for Readarr
     #shellcheck source=sources/functions/utils
     . /etc/swizzin/sources/functions/utils
+    #shellcheck source=sources/functions/servarr
+    . /etc/swizzin/sources/functions/servarr
     app_name="sonarr"
-    if [ -z "$sonarrOwner" ]; then
-        if ! sonarrOwner="$(swizdb get $app_name/owner)"; then
-            sonarrOwner=$(_get_master_username)
-            ownerToSetInDB='True'
-        fi
-    else
+    if ! sonarrOwner=$(servarr_owner "$app_name" "$sonarrOwner"); then
         ownerToSetInDB='True'
     fi
 

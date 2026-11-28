@@ -86,23 +86,17 @@ function swizdash_download() {
 # The root helper and the only sudo rule of the dashboard user
 function swizdash_helper() {
     install -o root -g root -m 0755 "${swizdash_dir}/helper/swizdash-helper" /usr/local/sbin/swizdash-helper
+    local head="# swizdash runs unprivileged, only this helper runs as root and it checks every argument"
     local rule="swizdash ALL=(root) NOPASSWD: /usr/local/sbin/swizdash-helper"
     # the dashboard polls the helper: keep it out of the auth log where sudo allows it
     # (sudo-rs, on Ubuntu 26.04, does not know these settings)
-    printf '%s\n' "# swizdash runs unprivileged, only this helper runs as root and it checks every argument" \
-        "Defaults:swizdash !syslog, !logfile, !pam_session" "$rule" > /etc/sudoers.d/swizdash.tmp
-    chmod 0440 /etc/sudoers.d/swizdash.tmp
-    if ! visudo -cqf /etc/sudoers.d/swizdash.tmp > /dev/null 2>&1; then
-        printf '%s\n' "# swizdash runs unprivileged, only this helper runs as root and it checks every argument" "$rule" > /etc/sudoers.d/swizdash.tmp
-    fi
-    # a broken sudoers file would lock sudo for everyone
-    if visudo -cqf /etc/sudoers.d/swizdash.tmp > /dev/null 2>&1; then
-        mv -f /etc/sudoers.d/swizdash.tmp /etc/sudoers.d/swizdash
-    else
-        rm -f /etc/sudoers.d/swizdash.tmp
+    _install_sudoers swizdash "$head
+Defaults:swizdash !syslog, !logfile, !pam_session
+$rule" "$head
+$rule" || {
         echo_error "Could not write the swizdash sudo rule"
         exit 1
-    fi
+    }
 }
 
 # Shared secret nginx adds to each request: other local processes cannot reach the socket without it

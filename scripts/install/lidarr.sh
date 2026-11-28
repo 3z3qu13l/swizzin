@@ -10,13 +10,10 @@
 #   including (via compiler) GPL-licensed code must also be made available
 #   under the GPL along with build & install instructions.
 
-if [ -z "$LIDARR_OWNER" ]; then
-    if ! LIDARR_OWNER="$(swizdb get lidarr/owner)"; then
-        LIDARR_OWNER=$(_get_master_username)
-        echo_info "Setting Lidarr owner = $LIDARR_OWNER"
-        swizdb set "lidarr/owner" "$LIDARR_OWNER"
-    fi
-else
+#shellcheck source=sources/functions/servarr
+. /etc/swizzin/sources/functions/servarr
+
+if ! LIDARR_OWNER=$(servarr_owner lidarr "$LIDARR_OWNER"); then
     echo_info "Setting Lidarr owner = $LIDARR_OWNER"
     swizdb set "lidarr/owner" "$LIDARR_OWNER"
 fi
@@ -28,15 +25,7 @@ _lidarr_install() {
     echo_progress_start "Downloading release archive"
 
     urlbase="https://lidarr.servarr.com/v1/update/master/updatefile?os=linux&runtime=netcore"
-    case "$(_os_arch)" in
-        "amd64") dlurl="${urlbase}&arch=x64" ;;
-        "armhf") dlurl="${urlbase}&arch=arm" ;;
-        "arm64") dlurl="${urlbase}&arch=arm64" ;;
-        *)
-            echo_error "Arch not supported"
-            exit 1
-            ;;
-    esac
+    dlurl=$(servarr_url "$urlbase") || exit 1
 
     if ! curl "$dlurl" -L -o /tmp/lidarr.tar.gz >> "$log" 2>&1; then
         echo_error "Download failed, exiting"

@@ -1,10 +1,11 @@
 #!/bin/bash
-systemctl disable --now -q lidarr
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
+remove_unit lidarr
 
 rm -rf /opt/Lidarr
 rm -rf /install/.lidarr.lock
-rm -rf /etc/systemd/system/lidarr.service
-systemctl daemon-reload
 
 if [[ -f /install/.nginx.lock ]]; then
     rm -rf /etc/nginx/apps/lidarr.conf

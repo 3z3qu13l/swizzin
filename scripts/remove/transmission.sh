@@ -1,4 +1,7 @@
 #!/bin/bash
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 echo_log_only "Removing Transmission"
 users=($(cut -d: -f1 < /etc/htpasswd))
 for u in ${users[@]}; do
@@ -20,7 +23,7 @@ if [[ -f /etc/apparmor.d/local/transmission-daemon ]]; then
         apparmor_parser -r /etc/apparmor.d/transmission >> "$log" 2>&1
     fi
 fi
-systemctl reload nginx >> "$log" 2>&1
+nginx_reload
 systemctl daemon-reload
 
 rm /install/.transmission.lock

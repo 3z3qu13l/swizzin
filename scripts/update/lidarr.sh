@@ -1,13 +1,8 @@
 #!/bin/bash
 if [[ -f /install/.lidarr.lock ]]; then
-
-    if [ -z "$LIDARR_OWNER" ]; then
-        if ! LIDARR_OWNER="$(swizdb get lidarr/owner)"; then
-            LIDARR_OWNER=$(_get_master_username)
-            echo_info "Setting Lidarr owner = $LIDARR_OWNER"
-            swizdb set "lidarr/owner" "$LIDARR_OWNER"
-        fi
-    else
+    #shellcheck source=sources/functions/servarr
+    . /etc/swizzin/sources/functions/servarr
+    if ! LIDARR_OWNER=$(servarr_owner lidarr "$LIDARR_OWNER"); then
         echo_info "Setting Lidarr owner = $LIDARR_OWNER"
         swizdb set "lidarr/owner" "$LIDARR_OWNER"
     fi

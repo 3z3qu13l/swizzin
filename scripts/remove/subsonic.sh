@@ -18,11 +18,14 @@
 #   under the GPL along with build & install instructions.
 #
 
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 dpkg -r subsonic
-rm /etc/systemd/system/subsonic.service
+remove_unit subsonic
 rm -rf /srv/subsonic
 rm -rf /var/subsonic
 rm -rf /usr/share/subsonic
 rm -f /etc/nginx/apps/subsonic.conf
 rm -f /install/.subsonic.lock
-systemctl reload nginx
+nginx_reload

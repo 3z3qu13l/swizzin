@@ -53,12 +53,12 @@ function _install_calibreweb() {
     echo_progress_done "Venv created"
 
     echo_progress_start "Downloading calibreweb source code archive"
-    dlurl=$(curl -s https://api.github.com/repos/janeczku/calibre-web/releases/latest | jq -r '.zipball_url') || {
+    tag=$(github_latest_version janeczku/calibre-web) || {
         echo_error "Failed to query github"
         exit 1
     }
 
-    wget -q "${dlurl}" -O /tmp/calibreweb.zip >> $log 2>&1 || {
+    wget -q "https://github.com/janeczku/calibre-web/archive/refs/tags/${tag}.zip" -O /tmp/calibreweb.zip >> $log 2>&1 || {
         echo_error "Failed to download source code"
         exit 1
     }

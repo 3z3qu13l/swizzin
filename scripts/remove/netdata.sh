@@ -1,6 +1,9 @@
 #! /bin/bash
 # Netdata uninstaller for swizzin
 
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 if [[ -f /usr/libexec/netdata/netdata-uninstaller.sh ]]; then
     /usr/libexec/netdata/netdata-uninstaller.sh --yes --env /etc/netdata/.environment -f >> $log 2>&1 || {
         echo_error "Netdata remover failed!"
@@ -13,5 +16,5 @@ else
     }
 fi
 rm /etc/nginx/apps/netdata.conf
-systemctl reload nginx >> ${log} 2>&1
+nginx_reload
 rm -rf /install/.netdata.lock

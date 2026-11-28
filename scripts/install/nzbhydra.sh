@@ -33,7 +33,7 @@ esac
 LIST="unzip $java"
 apt_install $LIST
 
-latest=$(curl -s https://api.github.com/repos/theotherp/nzbhydra2/releases/latest | grep -E "browser_download_url" | grep linux | grep "$(_os_arch)" | head -1 | cut -d\" -f 4)
+latest=$(github_release_asset theotherp/nzbhydra2 "linux.*$(_os_arch)|$(_os_arch).*linux")
 if [[ -z $latest ]]; then
     echo_error "Could not find the latest NZBHydra release"
     exit 1

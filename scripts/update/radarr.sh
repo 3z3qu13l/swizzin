@@ -6,13 +6,10 @@ if [[ -f /install/.radarr.lock ]]; then
     #Mandatory SSL Port change for Readarr
     #shellcheck source=sources/functions/utils
     . /etc/swizzin/sources/functions/utils
+    #shellcheck source=sources/functions/servarr
+    . /etc/swizzin/sources/functions/servarr
     app_name="radarr"
-    if [ -z "$radarrOwner" ]; then
-        if ! radarrOwner="$(swizdb get $app_name/owner)"; then
-            radarrOwner=$(_get_master_username)
-            ownerToSetInDB='True'
-        fi
-    else
+    if ! radarrOwner=$(servarr_owner "$app_name" "$radarrOwner"); then
         ownerToSetInDB='True'
     fi
 

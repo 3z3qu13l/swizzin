@@ -7,9 +7,8 @@
 #shellcheck source=sources/functions/utils
 . /etc/swizzin/sources/functions/utils
 
-systemctl -q disable --now mylar
+remove_unit mylar
 
-rm_if_exists /etc/systemd/system/mylar.service
 rm_if_exists /opt/mylar
 rm_if_exists /opt/.venv/mylar
 rm_if_exists /install/.mylar.lock
