@@ -103,6 +103,7 @@ if [[ -n $noexec ]]; then
     mount -o remount,exec /tmp
     noexec=1
 fi
+curl_local_remove_broken
 depends_rtorrent
 if [[ ! $rtorrentver == repo ]]; then
     configure_curl
