@@ -157,11 +157,7 @@ function _clr() {
 }
 
 function _update() {
-    # Checking for develop branch
     git_ref="origin/master"
-    if [ "$branch_name" == "develop" ]; then
-        git_ref="origin/develop"
-    fi
 
     if [[ -L /etc/swizzin ]]; then
         noupdate_message="Not updating /etc/swizzin as it is a symlink. Please consult your provider/maintainers in case you believe this is an error."
@@ -245,9 +241,9 @@ function _upgrade() {
 }
 
 function _upgrade_all() {
-    # These ask which version to build, reset the nginx config, migrate Sonarr v2, or set up plexupdate interactively.
+    # These ask which version to build, reset the nginx config, or set up plexupdate interactively; syncthing migrates its data to v2.
     # curl has no lock file, so it is never picked up here.
-    local skipped=(deluge nginx plex qbittorrent rtorrent sonarr syncthing)
+    local skipped=(deluge nginx plex qbittorrent rtorrent syncthing)
     local apps=() failed=() app script
     for script in /usr/local/bin/swizzin/upgrade/*.sh; do
         app=$(basename "$script" .sh)
@@ -283,9 +279,10 @@ function _help() {
     echo -e "\t$(basename $0) [ adduser | deluser | chpasswd ] ${bold}username${normal} [ password ]"
     echo -e "\t$(basename "$0") [ fix-downloads ] ${bold}username${normal}"
     echo -e "\t$(basename "$0") [ media-access ] ${bold}app${normal} ${bold}folder${normal}"
-    echo -e "\t$(basename $0) [ list | update ]"
+    echo -e "\t$(basename $0) [ test ] [ ${bold}pkg1${normal} ... ]"
+    echo -e "\t$(basename $0) [ list | update | rtx | rmgrsec ]"
     echo
-    echo -e "Note: Only install and remove functions accept package arguments. List and update must be run without modifiers\n" | fmt --goal=66 --tagged-paragraph
+    echo -e "Note: install, remove, upgrade and test take package names. List and update take none\n" | fmt --goal=66 --tagged-paragraph
     echo
     printf "${sgformat}" "install"
     echo -e "The install function requires at least one package name as an argument but will accept multiples" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
@@ -298,7 +295,7 @@ function _help() {
     printf "${sgformat}" "upgrade"
     echo -e "Runs the associated upgrade script." | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
     echo -e "               Example: box upgrade plex curl" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
-    echo -e "               box upgrade --all upgrades every installed package except rtorrent, qbittorrent, deluge, nginx, plex and sonarr" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo -e "               box upgrade --all upgrades every installed package except rtorrent, qbittorrent, deluge, nginx, plex and syncthing" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
     echo
     printf "${sgformat}" "adduser"
     echo -e "The adduser function requires a single user to be specified, this user will be created" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
@@ -325,6 +322,16 @@ function _help() {
     echo
     printf "${sgformat}" "list"
     echo -e "The list command will list packages available to be managed by box" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo
+    printf "${sgformat}" "test"
+    echo -e "Checks that the given installed packages, or all of them, run and answer" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo -e "               Example: box test qbittorrent" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo
+    printf "${sgformat}" "rtx"
+    echo -e "Installs or removes ruTorrent plugins and themes" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
+    echo
+    printf "${sgformat}" "rmgrsec"
+    echo -e "Replaces an OVH grsec kernel with the distribution's kernel" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"
 }
 
 function _list() {
@@ -333,7 +340,7 @@ function _list() {
     for app in "${repo[@]}"; do
         sgformat="${bold}%-15s${normal}"
         spacing=$(echo $'\t' | pr -Te15)
-        description=$(grep -i -m 1 \\\[\'$app $locale | cut -d= -f2 | sed "s/ '//g" | sed "s/';//g" | sed "s/\\\'/'/g")
+        description=$(grep -m 1 "\['${app^^}'\]" $locale | cut -d= -f2 | sed "s/ '//g" | sed "s/';//g" | sed "s/\\\'/'/g")
         if [[ -z $description ]]; then description="Description missing"; fi
         printf "${sgformat}" "$app"
         echo -e "${description}\n" | fmt --goal=50 | sed -e "2,\$s/^/$spacing/"

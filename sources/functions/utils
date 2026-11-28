@@ -1,4 +1,5 @@
 #!/bin/bash
+# Small shared helpers: rar, rm_if_exists, port, RAM and swap checks, installed apps, latest GitHub release
 
 # Handles rar installation for all distros and architectures
 function install_rar() {
@@ -17,34 +18,6 @@ function install_rar() {
                 apt_install --ignore-errors unrar
                 ;;
         esac
-
-        #Should not be required anymore, left for posterity
-        if [ -n "$dlurl" ]; then
-            # cd /tmp
-            echo_progress_start "Downloading rar & unrar binaries for $(_os_distro)-$(_os_arch)"
-            wget -q "$dlurl" -O /tmp/rarbins.tar.gz || {
-                echo_warn "Failed to download binaries. Please investigate\nInstallation will continue"
-            }
-            tar -xzf /tmp/rarbins.tar.gz -C /tmp >> "$log" 2>&1
-            cp /tmp/rar/*rar /bin >> "$log" 2>&1
-            rm -rf /tmp/rarbins.tar.gz
-            rm -rf /tmp/rar
-            echo_progress_done "rar & unrar installed"
-        fi
-
-        #Currently un-used as well
-        if [ -n "$deburl" ]; then
-            echo_progress_start "Installing unrar"
-            wget -q "$deburl" -O /tmp/unrar.deb || {
-                echo_warn "Failed to download unrar. Please investigate\nInstallation will continue"
-            }
-            if ! dpkg -i /tmp/unrar.deb >> "$log" 2>&1; then
-                echo_warn "Failed to install unrar. Please investigate\nInstallation will continue"
-            else
-                rm /tmp/unrar.deb
-                echo_progress_done "Unrar installed"
-            fi
-        fi
 
         if ! which rar > /dev/null; then
             echo_warn "Rar (for creating archives) is not supported on $(_os_distro)-$(_os_arch).\nInstallation will continue."
@@ -130,24 +103,6 @@ _get_installed_apps() {
     find /install -type f -name .\*.lock | awk -F. '{print $2}' | sort
 }
 
-# ENV_VAR > swizdb key's value > default
-# \
-# $1 = swizdb key
-# $2 = default
-# $3 = ENV_VAR
-# \
-# **Returns key's value after logic**
-function populate_var() {
-    if [ -z "$3" ]; then           # If ENV_VAR is zero length
-        if ! swizdb get "$1"; then # If swizdb key's value is null
-            swizdb set "$1" "$2"   # Save default as value
-        fi
-    else                     # If ENV_VAR isn't zero length
-        swizdb set "$1" "$3" # Save ENV_VAR as value
-    fi
-    swizdb get "$1" # Return swizdb key's value
-}
-
 function github_latest_version() {
     # Argument expects the author/repo format
     # e.g. swizzin/swizzin
@@ -158,4 +113,17 @@ function github_latest_version() {
     url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${1}/releases/latest") || return 1
     [[ $url == */releases/tag/* ]] || return 1
     echo "${url##*/}"
+}
+
+# An app that moved from a templated <app>@ unit to <app>.service: drops a template left behind,
+# warns when the app still runs from it. $1 = app, $2 = its name for the user
+function legacy_template_unit() {
+    local app=$1 name=$2
+    [[ -f /etc/systemd/system/${app}@.service ]] || return 0
+    if [[ -f /etc/systemd/system/${app}.service ]]; then
+        rm -f "/etc/systemd/system/${app}@.service"
+        systemctl daemon-reload
+    else
+        echo_warn "${name} still runs from its ${app}@ service, which is no longer supported. Back up its settings, run systemctl disable --now ${app}@$(_get_master_username) and delete /etc/systemd/system/${app}@.service, then box remove ${app} && box install ${app}"
+    fi
 }

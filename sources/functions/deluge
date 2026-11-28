@@ -1,11 +1,12 @@
 #!/bin/bash
+# Deluge: version menu, libtorrent and Deluge builds or apt packages, its services, web UI and per-user config
 
 function whiptail_deluge() {
     echo_progress_start "Choosing Deluge versions"
     if [[ -z $DELUGE_VERSION ]]; then
         repov=$(get_candidate_version deluge)
         case $(_os_codename) in
-            buster | focal | bullseye | jammy)
+            focal | bullseye | jammy)
                 function=$(whiptail --title "Pick deluge version" --menu "Choose a Deluge version:" --ok-button "Continue" --nocancel 12 50 5 \
                     "Repo" "${repov}" \
                     "Deluge 2.2" "" \
@@ -276,18 +277,11 @@ function build_deluge() {
             args="--python-disable-dependency=pyxdg --python-disable-dependency=pyopenssl -d python3-openssl -d python3-xdg -d python3-six"
             ;;
         1.3-stable)
-            if [[ $(_os_codename) = "buster" ]]; then
-                LIST='python python-twisted python-openssl python-setuptools intltool python-xdg python-chardet python-notify python-pygame python-glade2 librsvg2-common xdg-utils python-mako'
-                pythonver=python2
-                distver=python2.7
-                args=
-            else
-                LIST='python2.7-dev intltool xdg-utils librsvg2-common'
-                PIP='twisted pyopenssl setuptools pyxdg chardet notify pygame mako service_identity Automat==20.2.0'
-                pythonver=python2.7
-                distver=python2.7
-                args=
-            fi
+            LIST='python2.7-dev intltool xdg-utils librsvg2-common'
+            PIP='twisted pyopenssl setuptools pyxdg chardet notify pygame mako service_identity Automat==20.2.0'
+            pythonver=python2.7
+            distver=python2.7
+            args=
             ;;
         *)
             echo_error "$DELUGE_VERSION branch not recognized. Setup will now exit"

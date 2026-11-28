@@ -78,12 +78,12 @@ sudo bash swizzin/setup.sh --local
 
 Want to specify the user and their password? And the packages to have installed? Use the `--user` and `--pass` flags, and add packages as arguments!
 ```bash
-bash <(curl -sL git.io/swizzin) --unattend qbittorrent nginx panel --user tester --pass test1234
+bash /etc/swizzin/setup.sh --unattend qbittorrent nginx panel --user tester --pass test1234
 ```
 
 Want something a bit more complex, specify package install variables, don't want a super long command to type, and store the configuration? Use the `--env` flag with your custom `env` file! (see the [unattended.example.env](unattended.example.env) file for an example)
 ```bash
-bash <(curl -sL git.io/swizzin) --env /path/to/your/env/file/here.env
+bash /etc/swizzin/setup.sh --env /path/to/your/env/file/here.env
 ```
 
 ### Supported Operating Systems
@@ -107,7 +107,7 @@ Box functions:
 -   list - list all available packages in the repo and a description, if available.
     -   Usage: `box list`
 -   install - installs a package from the script repository. Accepts one or more package.
-    -   Usage: `box install sickrage couchpotato plex`
+    -   Usage: `box install sonarr radarr plex`
 -   remove - removes an installed package. Accepts one or more package
     -   Usage: `box remove sonarr radarr`
 -   adduser - adds a new user. Define a single user with the command.
@@ -124,7 +124,7 @@ Box functions:
     -   Usage: `box update`
 -   upgrade - upgrade the given package (available scripts are in scripts/upgrade)
     -   Usage: `box upgrade nginx`
-    -   `box upgrade --all` upgrades every installed package, except those that ask questions or rebuild for a long time, or migrate their data to a new major version (rtorrent, qbittorrent, deluge, nginx, plex, sonarr, syncthing). A failure does not stop the others, they are listed at the end. Some upgrade scripts do not report every error, so check the app if something looks off.
+    -   `box upgrade --all` upgrades every installed package, except those that ask questions or rebuild for a long time, or migrate their data to a new major version (rtorrent, qbittorrent, deluge, nginx, plex, syncthing). A failure does not stop the others, they are listed at the end. Some upgrade scripts do not report every error, so check the app if something looks off.
 -   test - checks that the given installed packages run and answer (available tests are in scripts/tests)
     -   Usage: `box test qbittorrent`
 -   rmgrsec - removes grsec kernels installed by ovh

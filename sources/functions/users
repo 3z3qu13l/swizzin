@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# swizzin users: names and passwords, sudoers, home and web-server ACLs, running a command as another user
 
 # Returns a password for a user in case one exists.
 # If password is not found, returns with error code 1

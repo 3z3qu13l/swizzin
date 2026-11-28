@@ -56,9 +56,6 @@ else
     echo_progress_start "Downloading and extracting Nextcloud"
     codename=$(lsb_release -cs)
     case $codename in
-        buster)
-            version=latest-23
-            ;;
         focal | bullseye)
             version=latest-25
             ;;

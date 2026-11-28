@@ -1,18 +1,9 @@
 #!/bin/bash
-user=$(cut -d: -f1 < /root/.master.info)
-if [[ -d /home/${user}/.venv ]]; then
-    mv /home/${user}/.venv /opt
-    envs=($(ls /opt/.venv))
-    for app in ${envs[@]}; do
-        mv /home/${user}/${app} /opt
-        sed -i "s|/home/${user}|/opt|g" /etc/systemd/system/${app}.service
-        sed -i "s|/opt/.config|/home/${user}/.config|g" /etc/systemd/system/${app}.service
-        if [[ $app == "pyload" ]]; then
-            echo "/opt/pyload" > /opt/pyload/module/config/configdir
-        fi
-        systemctl daemon-reload
-        systemctl try-restart $app
-    done
+user=$(_get_master_username)
+# a venv of the user's own is not one of swizzin's app venvs
+if [[ -d /home/${user}/.venv && ! -f /home/${user}/.venv/pyvenv.cfg ]]; then
+    old=$(find "/home/${user}/.venv" -mindepth 1 -maxdepth 1 -type d -exec test -e {}/bin/python \; -printf '%f ')
+    [[ -n $old ]] && echo_warn "Some apps still have their python venv in /home/${user}/.venv, which is no longer supported: back up their settings, then reinstall each with box remove <app> && box install <app> (${old% })"
 fi
 
 if [[ -d /opt/.venv ]]; then

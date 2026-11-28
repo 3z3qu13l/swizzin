@@ -1,4 +1,5 @@
 #!/bin/bash
+# qui: download its latest release for this architecture
 
 function qui_download_latest() {
     echo_progress_start "Downloading qui release archive"

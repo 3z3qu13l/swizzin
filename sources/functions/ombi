@@ -1,4 +1,5 @@
 #!/bin/bash
+# Ombi: install from GitHub releases (and move installs off its retired apt repository), upgrade with rollback, purge
 
 #shellcheck source=sources/functions/utils
 . /etc/swizzin/sources/functions/utils
@@ -6,7 +7,7 @@
 # Debian 13 and later: apt.ombi.app's key is bound with SHA1 signatures, which their apt verifier (sqv)
 # refuses since 2026-02-01, so the repository cannot be verified. Ombi comes from its GitHub releases there.
 function ombi_from_github() {
-    [[ $(_os_distro) == debian && ! $(_os_codename) =~ ^(buster|bullseye|bookworm)$ ]]
+    [[ $(_os_distro) == debian && ! $(_os_codename) =~ ^(bullseye|bookworm)$ ]]
 }
 
 # Whether the apt package is installed: once removed, dpkg still knows it by its config files

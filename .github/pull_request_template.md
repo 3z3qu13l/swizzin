@@ -20,8 +20,8 @@
 - Contribution flow     <!-- IDE changes, `.github` dir, etc. -->
 
 ## Checklist
-<!-- Please note that we also require you to check the CONTRIBUTORS.md file, this is just a short list-->
-- [ ] Branch was made off the `develop` branch and the PR is targetting the `develop` branch
+<!-- Please note that we also require you to check the CONTRIBUTING.md file, this is just a short list-->
+- [ ] Branch was made off the `master` branch and the PR is targetting the `master` branch
 - [ ] Docs have been made OR are not necessary
     - PR link: 
 - [ ] Changes to panel have been made OR are not necessary
@@ -46,11 +46,13 @@ Please use these emojis here to fill the table below. It will nicely auto-format
 -->
 |   			| `amd64` 	| `armhf` 	| `arm64` 	| Unspecified 	|
 |--------		|-------- 	|-------- 	|-------- 	|----------		|
+| Resolute      |           |           |           |               |
+| Noble         |           |           |           |               |
 | Jammy 		|			|			|			|				|
 | Focal 		|			|			|			|				|
+| Trixie        |           |           |           |               |
 | Bookworm      |           |           |           |               |
 | Bullseye		|			|			|			|				|
-| Buster		|			|			|			|				|
 | Raspbian  	|	⚫️		|			|	⚫️		|	⚫️			|
 
 ### ✅❎ Passed

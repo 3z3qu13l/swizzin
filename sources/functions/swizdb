@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# swizdb: swizzin's small key-value store in /var/lib/swizzin/db (swizdb get|set|list|clear|path <key>)
 #shellcheck disable=SC2002
 
 export dbdir="/var/lib/swizzin/db"

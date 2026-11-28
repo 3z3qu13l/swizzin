@@ -41,15 +41,7 @@ function _selectiface() {
 
 function _install_wg() {
 
-    case ${codename} in
-        buster)
-            check_debian_backports
-            PKGS+=(wireguard-dkms qrencode iptables)
-            ;;
-        *)
-            PKGS=(wireguard qrencode iptables)
-            ;;
-    esac
+    PKGS=(wireguard qrencode iptables)
 
     apt_update
     apt_install --recommends ${PKGS[@]}
@@ -161,8 +153,6 @@ EOWGC
 
 # shellcheck source=sources/functions/utils
 . /etc/swizzin/sources/functions/utils
-#shellcheck source=sources/functions/backports
-. /etc/swizzin/sources/functions/backports
 
 distribution=$(_os_distro)
 codename=$(_os_codename)

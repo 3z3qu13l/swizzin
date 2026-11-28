@@ -1,4 +1,5 @@
 #!/bin/bash
+# qBittorrent: version menu, Qt, libtorrent and qBittorrent builds, its service, per-user config and password
 
 function whiptail_qbittorrent() {
     if [[ -z $QBITTORRENT_VERSION ]]; then
@@ -19,15 +20,6 @@ function whiptail_qbittorrent() {
         #latestv=$(echo "$releases" | grep -m1 -oP '\d.\d?.?\d?.?\d')
         repov=$(get_candidate_version qbittorrent-nox)
         case ${codename} in
-            "buster")
-                #We can't go past 4.5 due to gcc8 missing features
-                function=$(whiptail --title "Pick qbittorrent version" --menu "Choose a qBittorrent version:" --ok-button "Continue" --nocancel 12 50 6 \
-                    "Repo" "${repov}" \
-                    "4.4" "(${latestv44})" \
-                    "4.3" "(${latestv43})" \
-                    "4.2" "(${latestv42})" \
-                    "4.1" "(${latestv41})" 3>&1 1>&2 2>&3)
-                ;;
             "bullseye" | "focal" | "jammy")
                 function=$(whiptail --title "Pick qbittorrent version" --menu "Choose a qBittorrent version:" --ok-button "Continue" --nocancel 12 50 6 \
                     "Repo" "${repov}" \
@@ -105,9 +97,6 @@ function whiptail_qbittorrent() {
 function qbittorrent_version_info() {
     if [[ ${QBITTORRENT_VERSION} == "latest" ]]; then
         case $(_os_codename) in
-            buster)
-                QBITTORRENT_VERSION=$(git ls-remote -t --refs https://github.com/qbittorrent/qBittorrent.git | awk '{sub("refs/tags/release-", ""); print $2 }' | grep -v -e "beta" -e "rc" | grep -E '^4\.[1-4]\.' | sort -Vr | head -n1)
-                ;;
             bullseye | focal | jammy)
                 QBITTORRENT_VERSION=$(git ls-remote -t --refs https://github.com/qbittorrent/qBittorrent.git | awk '{sub("refs/tags/release-", ""); print $2 }' | grep -v -e "beta" -e "rc" | grep -E '^4\.' | sort -Vr | head -n1)
                 ;;
@@ -319,7 +308,7 @@ function qbittorrent_version_info() {
             ;;
     esac
     # 5.x needs Boost >= 1.76 and OpenSSL >= 3.0.2: fail here rather than after the libtorrent build
-    if [[ $QBITTORRENT_VERSION == 5.* ]] && [[ $(_os_codename) =~ ^(buster|bullseye|focal|jammy)$ ]]; then
+    if [[ $QBITTORRENT_VERSION == 5.* ]] && [[ $(_os_codename) =~ ^(bullseye|focal|jammy)$ ]]; then
         echo_error "qBittorrent ${QBITTORRENT_VERSION} cannot be built on $(_os_codename): pick a version offered by the menu. Setup will not proceed."
         exit 1
     fi
@@ -606,9 +595,6 @@ function build_qbittorrent() {
     fi
     VERSION=${QBITTORRENT_VERSION}
     case $(_os_codename) in
-        buster)
-            OS_DEPS='libdouble-conversion1 libdouble-conversion-dev'
-            ;;
         focal)
             OS_DEPS='libdouble-conversion3 libdouble-conversion-dev libmd4c0 libmd4c-dev'
             ;;

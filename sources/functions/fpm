@@ -1,4 +1,5 @@
 #!/bin/bash
+# install_fpm: the fpm tool the builds use to package what they compile as .deb
 
 function install_fpm() {
     fpm -h > /dev/null 2>&1
@@ -7,10 +8,6 @@ function install_fpm() {
         apt_install ruby ruby-dev libffi-dev
         echo_progress_start "Installing fpm through ruby/gem"
         case $(_os_codename) in
-            buster)
-                gem install public_suffix -v 4.0.7 >> $log 2>&1
-                gem install dotenv -v 2.8.1 >> $log 2>&1
-                ;;
             focal)
                 gem install dotenv -v 2.8.1 >> $log 2>&1
                 ;;

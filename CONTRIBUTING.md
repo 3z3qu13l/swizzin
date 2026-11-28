@@ -1,7 +1,7 @@
 # TL;DR:
 
 1. Familiarize yourself with the documentation and code available at [swizzin Dev Docs](https://swizzin.ltd/dev/).
-1. Make sure your PRs are from and targeted to the `develop` branch.
+1. Make sure your PRs target the `master` branch.
 1. PRs should meet specific criteria, including a completed checklist
     - If your PR doesn't meet the criteria, mark it as "Draft PR" and optionally prepend the title with `WIP:`.
 1. Follow the 4-space indentation style in bash code, use `shellcheck` to catch errors, and add helpful comments for reusable code.
@@ -12,7 +12,7 @@
 1. Use the functions exported from `sources/functions/color_echo` for terminal prints and logging.
 1. Use service files for application management 
 1. Describe user management for your application when necessary.
-1. Create documentation pages on the [Swizzin Docs](https://github.com/liaralabs/docs.swizzin.ltd) repo for new applications.
+1. For a new application, follow [Adding an application](#adding-an-application): its scripts, and its entry in the dashboard catalog.
 
 ----
 # Contributing guidelines
@@ -22,10 +22,8 @@ There is a large amount of further documentation and guidance available in our d
 
 In case anything is not clear, we're always happy to explain and teach why/how these things are done; feel free to come talk to us in our Discord.
 
-## Merging against the `develop` branch
-As we use the git flow, please make sure to make your PRs from the `develop` branch, and target the `develop` branch for the PRs.
-
-Changes will make it to the master in releases.
+## Merging against the `master` branch
+This fork works on `master`: branch from it and target it with your PR. `box update` pulls `master`.
 
 ## Requirements for consideration
 We expect the following criteria from a PR. You're more than welcome to ask us how to achieve any of these that you are not familiar with, and we'll be happy to help.
@@ -46,7 +44,7 @@ Please make sure that you have the following plugins and tools installed and wor
 - `shellcheck` [VSCode Plugin](https://marketplace.visualstudio.com/items?itemName=timonwong.shellcheck) and [Binary](https://www.shellcheck.net/) (**version 0.7.1 or higher**)
   - If you are not using VS Code with the plugin above, please make sure to catch **anything** that `shellcheck` does not like.
   - Wherever you deem appropriate, add `#shellcheck disable=...` _inline_ to suppress the warnings.
-- `shell-format` [VSCode Plugin](https://marketplace.visualstudio.com/items?itemName=foxundermoon.shell-format) (auto-installs binary) and [Binary](https://github.com/mvdan/sh)
+- `shfmt` [VSCode Plugin](https://marketplace.visualstudio.com/items?itemName=mkhl.shfmt) and [Binary](https://github.com/mvdan/sh)
   - If you are not using VS Code with the plugin above, please make sure to apply formatting with the flags mentioned in [`settings.json`](.vscode/settings.json)
 
 ### Suggested
@@ -96,7 +94,7 @@ When making logic based on distribution codenames, please structure it in such a
 
 A practical example for this is handling packages that are no longer packaged for newer LTS releases. In such scenarios, please make it so that the "default" behaviour is for newer LTS releases, and the older LTS releases are treated as the outliers. e.g.:
 ```bash
-if [[ $codename =~ ("buster"|"stretch") ]]; then
+if [[ $codename =~ ("focal"|"bullseye") ]]; then
   mcrypt=php-mcrypt
 else
   mcrypt=
@@ -127,9 +125,10 @@ We have developed our own internal set of functions for handling `apt` packages 
   * `apt_autoremove`
   * `apt_upgrade [options]`
   * `apt_update [options]`
-* Non-exported functions which need a `source` or a `. .../apt`. Please consult the `sources/functions/apt` file to see what they do and how they work.
+* Helpers, also exported. Please consult the `sources/functions/apt` file to see what they do and how they work.
+  * `apt_key_install <url> <keyring>`
   * `get_candidate_version`
-  * `_get_apt_last_log`
+  * `_get_last_apt_log`
   * `check_installed`
   * ... and a couple others
 
@@ -141,14 +140,16 @@ The following options can be used with any of the exported functions above to ov
 * `--interactive`
   * Run the installation stdout in the forefront and allow any end-user interaction if necessary
   * WARNING: This is not yet fully tested
-* `--skip-check`
+* `--skip-checks`
   * Skips integrity checks during the command such as `dpkg` lock checking, `apt --simulate`, and a couple others.
 * `--ignore-errors`
   * Allows script to continue in case an error was encountered, instead of killing the job script by default
 * `--purge`
   * _Only for `apt_remove`_: performs the removal with the `--purge` flag sent to the `apt-get remove` command.
-* `--recommends`
-  * _Only for `apt_install`_: performs the installation with the `--install-recommends` flag sent to the `apt-get install` command.
+* `--recommends` / `--no-recommends`
+  * _Only for `apt_install`_: performs the installation with the `--install-recommends` (or `--no-install-recommends`) flag sent to the `apt-get install` command.
+* `--only-upgrade`
+  * _Only for `apt_install`_: upgrades packages that are already installed, never installs a new one nor removes one to solve dependencies.
 
 ## Printing into the terminal
 Please use the functions exported from `sources/functions/color_echo` that are available whenever something is ran from the context of either `box` or `setup.sh`.
@@ -172,7 +173,6 @@ echo_tests
 There is a wide choice of "styles" to choose from, please use them appropriately. Here is a small guide on their use
 * Ensure you are correctly outputting to the log
 * Make sure the `echo_...` calls are on the "inside of the function", not outside and around it.
-  * TODO Clarify what his means
 * `echo_success` is meant to be the final echo printed in the event an installation was successful.
 * `echo_error` is meant to be the final echo printed in the event something irrecoverable happens, or an abortion is encountered.
 * `echo_warn` is meant to alert the user to some of the following examples:
@@ -205,7 +205,7 @@ If necessary, please append the `$log` forward with `2>&1` to redirect all `stde
 ## Python applications
 As a principle, please avoid installing Python2 applications. 
 
-Due to how Python is being versioned, please see the python functions available in `sources/function/python`.
+Due to how Python is being versioned, please see the python functions available in `sources/functions/pyenv`.
 
 Please use virtual environments only for applications that require a specific or an outdated version of Python.
 
@@ -218,3 +218,21 @@ Whenever possible, please describe how is user management done within your appli
 ## Documentation
 For new applications, please make sure to make the necessary documentation pages on the [Swizzin Docs](https://github.com/liaralabs/docs.swizzin.ltd) repo. It's nice and convenient when you include the link to the Documentation repo PR in the PR here.
 
+## Adding an application
+An application is a set of scripts named after it (`<app>` below), which `box` finds by name.
+
+| Script | When | What it does |
+|---|---|---|
+| `scripts/install/<app>.sh` | always | installs, then touches `/install/.<app>.lock` as its last step |
+| `scripts/remove/<app>.sh` | always | stops and disables the units, deletes them and runs `systemctl daemon-reload`, deletes `/opt/<app>` (the user's config only after `ask`), the nginx conf (reload only if `/install/.nginx.lock` exists), its `swizdb` keys, then the lock |
+| `scripts/nginx/<app>.sh` | the app has a web UI | writes `/etc/nginx/apps/<app>.conf` behind the master's basic auth; the caller reloads nginx |
+| `scripts/upgrade/<app>.sh` | it is not upgraded by apt | starts with the lock check, never asks a question when `SWIZZIN_UPGRADE_ALL` is set |
+| `scripts/tests/<app>.sh` | `_basetest` does not fit | `_basetest` checks a unit named `<app>`, the port in `proxy_pass` and `/<app>` behind nginx |
+| `scripts/update/<app>.sh` | a migration for existing installs | runs on every `box update`: lock check, idempotent, never asks, one comment line on which installs it fixes |
+
+- Code that install, update and upgrade share goes in `sources/functions/<app>`, with a header line and one line per function (arguments, effect): see `sources/functions/syncthing`.
+- Use the shared helpers rather than your own: `_get_master_username`, `_get_user_list`, `_get_user_password`, `apt_install`/`apt_remove`/`apt_key_install`, `github_latest_version`, `port <low> <high>`, `swizdb`, `_os_codename`/`_os_distro`/`_os_arch`, and the `echo_*` functions with `>> "$log" 2>&1`.
+- Every question needs an environment variable that answers it, prefixed with the app's name (`<APP>_OWNER`, ports).
+- Per-user apps also need their branch in the user commands of `scripts/box` (adduser, deluser, chpasswd).
+- Add a description to `sources/lang_en` (`box list`), and an entry to `catalog/apps.json` in [swizzin-dashboard](https://github.com/3z3qu13l/swizzin-dashboard), then a dashboard release and its version in `sources/functions/swizdash`.
+- Removing an app: delete its install and upgrade scripts. Keep `remove/<app>.sh` for servers that still have it, its `nginx/` and `tests/` scripts while an update script still maintains it, a warning-only `update/<app>.sh` if useful, and print a hint in `box` if something replaces it.
