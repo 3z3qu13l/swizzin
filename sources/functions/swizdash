@@ -31,7 +31,7 @@ function swizdash_download() {
         npm_install
     fi
     if ! _swizdash_node_ok; then
-        echo_error "swizdash needs Node.js 24 or newer"
+        echo_error "swizdash needs Node.js 24 or newer in ${swizdash_node}, found: $("$swizdash_node" -v 2> /dev/null || echo none)"
         exit 1
     fi
     tmp=$(mktemp -d)
