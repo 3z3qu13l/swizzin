@@ -1,5 +1,8 @@
 #!/bin/bash
 
+#shellcheck source=sources/functions/utils
+. /etc/swizzin/sources/functions/utils
+
 systemctl disable --now -q panel
 rm -rf /srv/panel > /dev/null 2>&1
 rm -rf /opt/swizzin
@@ -8,6 +11,7 @@ if [ -z "$(ls -A /opt/.venv)" ]; then
     rm -rf /opt/.venv
 fi
 rm -f /etc/nginx/apps/panel.conf
+nginx_reload
 rm -f /etc/sudoers.d/panel
 setfacl -x u:swizzin /etc/htpasswd > /dev/null 2>&1
 rm /etc/cron.d/set_interface > /dev/null 2>&1
