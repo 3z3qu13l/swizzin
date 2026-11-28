@@ -26,6 +26,8 @@ rm -f /etc/nginx/sites-enabled/default
 rm -f /etc/nginx/conf.d/*
 rm -f /etc/nginx/snippets/{ssl-params,proxy,fancyindex}.conf
 
+#shellcheck source=sources/functions/letsencrypt
+. /etc/swizzin/sources/functions/letsencrypt
 #shellcheck source=sources/functions/php
 . /etc/swizzin/sources/functions/php
 
@@ -50,8 +52,11 @@ cat_config
 
 if [[ ! $hostname == "_" ]]; then
     sed -i "s/server_name _;/server_name $hostname;/g" /etc/nginx/sites-enabled/default
-    sed -i "s/ssl_certificate .*/ssl_certificate \/etc\/nginx\/ssl\/${hostname}\/fullchain.pem;/g" /etc/nginx/sites-enabled/default
-    sed -i "s/ssl_certificate_key .*/ssl_certificate_key \/etc\/nginx\/ssl\/${hostname}\/key.pem;/g" /etc/nginx/sites-enabled/default
+    # a failed Let's Encrypt request leaves the domain without certificate: keep the snakeoil one
+    if le_cert_ready "$hostname"; then
+        sed -i "s/ssl_certificate .*/ssl_certificate \/etc\/nginx\/ssl\/${hostname}\/fullchain.pem;/g" /etc/nginx/sites-enabled/default
+        sed -i "s/ssl_certificate_key .*/ssl_certificate_key \/etc\/nginx\/ssl\/${hostname}\/key.pem;/g" /etc/nginx/sites-enabled/default
+    fi
 fi
 
 for i in "${locks[@]}"; do
@@ -63,6 +68,12 @@ for i in "${locks[@]}"; do
     fi
 done
 
+# the package upgrade restarts nginx: check the config first
+nginx -t > /dev/null 2>&1 || {
+    nginx -t
+    echo_error "The nginx config is invalid, nginx was not reloaded and will not start again until it is fixed"
+    exit 1
+}
 apt_install --only-upgrade nginx
 
 systemctl reload nginx
