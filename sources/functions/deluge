@@ -218,7 +218,7 @@ function build_libtorrent_deluge() {
 
     if [[ -f /root/libtorrent-${libtorrent_branch}.patch ]]; then
         patch -p1 < /root/libtorrent-${libtorrent_branch}.patch >> ${log} 2>&1 || {
-            echo _error "Something went wrong when patching libtorrent"
+            echo_error "Something went wrong when patching libtorrent"
             exit 1
         }
         echo_info "Libtorrent patch found and applied!"

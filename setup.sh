@@ -314,7 +314,7 @@ function _check_results() {
         whiptail_transmission_source
     fi
 
-    if [[ $(grep -s rutorrent "$gui") ]] && [[ ! $(grep -s nginx "$results") ]]; then # Check nginx requirement for more than rutorrent
+    if grep -qs rutorrent "$results" && ! grep -qs nginx "$results" && [[ ! -f /install/.nginx.lock ]]; then # Check nginx requirement for more than rutorrent
         if (whiptail --title "nginx conflict" --yesno --yes-button "Install nginx" --no-button "Remove ruTorrent" "WARNING: The installer has detected that ruTorrent is to be installed without nginx. To continue, the installer must either install nginx or remove ruTorrent from the packages to be installed." 8 78); then
             sed -i '1s/^/nginx\n/' /root/results
             touch /tmp/.nginx.lock
@@ -403,10 +403,13 @@ _run_tests() {
 }
 
 _run_post() {
-    if [[ -z $postcommand ]]; then
+    if [[ -n $postcommand ]]; then
         echo_progress_start "Executing post-install commands"
-        $postcommand
-        echo_progress_done "Post-install commands finished"
+        if bash -c "$postcommand"; then
+            echo_progress_done "Post-install commands finished"
+        else
+            echo_warn "Post-install commands failed"
+        fi
     fi
 }
 

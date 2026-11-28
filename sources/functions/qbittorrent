@@ -531,7 +531,7 @@ function build_libtorrent_qbittorrent() {
     cd /tmp/libtorrent
     if [[ -f /root/libtorrent-${libtorrent_branch}.patch ]]; then
         patch -p1 < /root/libtorrent-${libtorrent_branch}.patch >> ${log} 2>&1 || {
-            echo _error "Something went wrong when patching libtorrent"
+            echo_error "Something went wrong when patching libtorrent"
             exit 1
         }
         echo_info "Libtorrent patch found and applied!"
@@ -704,7 +704,7 @@ function build_qbittorrent() {
 }
 
 function qbittorrent_service() {
-    if [[ ! -f /etc/systemd/system/qbittorent@.service ]]; then
+    if [[ ! -f /etc/systemd/system/qbittorrent@.service ]]; then
         type=simple
         if [[ $(systemctl --version | awk 'NR==1 {print $2}') -ge 240 ]]; then
             type=exec

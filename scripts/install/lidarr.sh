@@ -21,7 +21,7 @@ else
     swizdb set "lidarr/owner" "$LIDARR_OWNER"
 fi
 
-install() {
+_lidarr_install() {
     user="$LIDARR_OWNER"
     apt_install mediainfo sqlite3 libchromaprint-tools
 
@@ -72,7 +72,7 @@ LID
     chown -R "${user}": "/home/${user}/.tmp"
     chown -R "${user}": "/home/${user}/.config"
 }
-systemd() {
+_lidarr_systemd() {
     cat > /etc/systemd/system/lidarr.service << LID
 [Unit]
 Description=Lidarr
@@ -92,7 +92,7 @@ LID
     echo_progress_done "Services configured"
 }
 
-nginx() {
+_lidarr_nginx() {
     if [[ -f /install/.nginx.lock ]]; then
         echo_progress_start "Configuring nginx"
         sleep 10
@@ -104,10 +104,10 @@ nginx() {
     fi
 }
 
-install
+_lidarr_install
 config
-systemd
-nginx
+_lidarr_systemd
+_lidarr_nginx
 
 echo_progress_start "Enabling auto-start and executing Lidarr"
 systemctl enable -q --now lidarr

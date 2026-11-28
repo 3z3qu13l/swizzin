@@ -75,8 +75,8 @@ export -f _clearswizdb
 # $1 = key
 # $2 = value
 _setswizdb() {
-    mkdir -p "$(dirname "$dbdir/$key")" # Always ensure dir exists
     key="$1"
+    mkdir -p "$(dirname "$dbdir/$key")" # Always ensure dir exists
     value="$2"
     echo_log_only "Setting key \"$key\" to \"$value\""
     echo "${value}" > "$dbdir/$key"

@@ -63,15 +63,16 @@ function _install() {
             installa+=("$i" '""')
         fi
     done
-    whiptail --title "Install Software" --checklist --noitem --separate-output "Make some choices:" 15 26 7 "${installa[@]}" 2> results
+    results=$(mktemp)
+    whiptail --title "Install Software" --checklist --noitem --separate-output "Make some choices:" 15 26 7 "${installa[@]}" 2> "$results"
 
-    readarray -t result < results
+    readarray -t result < "$results"
     for result in "${result[@]}"; do
         echo_info "Installing ${result}"
         bash "/usr/local/bin/swizzin/install/${result}.sh"
     done
 
-    rm results
+    rm -f "$results"
     _function
 }
 
@@ -84,26 +85,29 @@ function _remove() {
             removea+=("$i" '""')
         fi
     done
-    whiptail --title "Remove Software" --noitem --checklist --separate-output "Make some choices:" 15 26 7 "${removea[@]}" 2> results
-    readarray -t result < results
+    results=$(mktemp)
+    whiptail --title "Remove Software" --noitem --checklist --separate-output "Make some choices:" 15 26 7 "${removea[@]}" 2> "$results"
+    readarray -t result < "$results"
     for result in "${result[@]}"; do
-        echo_info -e "Removing ${result}"
+        echo_info "Removing ${result}"
         bash /usr/local/bin/swizzin/remove/${result}.sh
     done
-    rm results
+    rm -f "$results"
     _function
 }
 
 function _cli() {
     arg=("$@")
     packages=("${arg[@]:1}")
-    repo=($(find /usr/local/bin/swizzin/install -type f -printf "%f\n" | cut -d "." -f 1))
     local failed=()
     for app in "${packages[@]}"; do
-        if [[ -f /install/.${app}.lock ]]; then
+        if [[ ! $app =~ ^[A-Za-z0-9_-]+$ ]]; then
+            echo_warn "Invalid package name: $app"
+            failed+=("$app")
+        elif [[ -f /install/.${app}.lock ]]; then
             echo_warn "Package $app already installed"
         else
-            if [[ "${repo[*]}" =~ $app ]]; then
+            if [[ -f /usr/local/bin/swizzin/install/$app.sh ]]; then
                 echo_info "Installing $app"
                 echo_docs "applications/$app"
                 bash /usr/local/bin/swizzin/install/$app.sh || failed+=("$app")
@@ -124,14 +128,24 @@ function _cli() {
 function _clr() {
     arg=("$@")
     packages=("${arg[@]:1}")
+    local rc=0
     for app in "${packages[@]}"; do
-        if [[ -f /install/.$app.lock && ! -f /usr/local/bin/swizzin/remove/$app.sh ]]; then
+        if [[ ! $app =~ ^[A-Za-z0-9_-]+$ ]]; then
+            echo_warn "Invalid package name: $app"
+            rc=1
+        elif [[ -f /install/.$app.lock && ! -f /usr/local/bin/swizzin/remove/$app.sh ]]; then
             echo_warn "box can no longer remove $app: remove it by hand"
+            rc=1
         elif [[ -f /install/.$app.lock ]]; then
             schedule_remove="true"
             echo_info "Removing $app"
             bash /usr/local/bin/swizzin/remove/$app.sh
-            echo_success "$app removed"
+            if [[ -f /install/.$app.lock ]]; then
+                echo_error "$app removal failed"
+                rc=1
+            else
+                echo_success "$app removed"
+            fi
         else
             echo_warn "Package $app not installed"
         fi
@@ -139,6 +153,7 @@ function _clr() {
     if [[ $schedule_remove = "true" ]]; then
         apt_autoremove
     fi
+    return $rc
 }
 
 function _update() {
@@ -351,7 +366,7 @@ function _adduser() {
 
     if id -u "${user}" > /dev/null 2>&1; then
         echo_info "The user ${user} already appears to be present on this machine; however, it does not appear to be configured as a swizzin user.\nThe user will be added to swizzin."
-        if [[ "$UNATTEND" == 'true' ]]; then
+        if [[ "$UNATTEND" != 'true' ]] && ! _no_terminal; then
             ask "Continue setting up user?" Y || exit 1
         fi
 
@@ -798,7 +813,7 @@ case "$1" in
             echo_error "You must choose some packages"
             exit 1
         fi
-        _clr "$@"
+        _clr "$@" || box_rc=1
         ;;
     "adduser")
         if [[ -n $4 ]]; then
