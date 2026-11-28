@@ -1,5 +1,5 @@
 #!/bin/bash
-# swizdash gets its own HTTPS port with the swizzin login, like Homepage
+# swizdash gets its own HTTPS port with the swizzin login
 
 listen_port=$(grep -oP 'listen \K[0-9]+' /etc/nginx/sites-enabled/swizdash 2> /dev/null | head -1)
 if [[ -z $listen_port ]]; then
