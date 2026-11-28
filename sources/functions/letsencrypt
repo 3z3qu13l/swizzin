@@ -1,5 +1,10 @@
 #!/bin/bash
-# Let's Encrypt renewal hooks giving the new certificate to vsftpd and ZNC
+# Let's Encrypt helpers: certificate check, renewal hooks giving the new certificate to vsftpd and ZNC
+
+# le_cert_ready <host>: true when /etc/nginx/ssl/<host>/ holds a non-empty fullchain.pem and key.pem
+function le_cert_ready() {
+    [[ -s /etc/nginx/ssl/$1/fullchain.pem && -s /etc/nginx/ssl/$1/key.pem ]]
+}
 
 function le_vsftpd_hook() {
     # Check for LE cert, and copy it if available.
@@ -7,7 +12,7 @@ function le_vsftpd_hook() {
     if [[ -n "$chkhost" ]]; then
         echo_progress_start "Installing certificate into vsftpd"
         defaulthost=$(grep -m1 "server_name" /etc/nginx/sites-enabled/default | awk '{print $2}' | sed 's/;//g')
-        if [[ ! "${defaulthost}" == "_" ]]; then
+        if [[ ! "${defaulthost}" == "_" ]] && le_cert_ready "${defaulthost}"; then
             if [[ -d /root/.acme.sh/${defaulthost}_ecc ]]; then
                 defaulthostDir="${defaulthost}_ecc"
             else
@@ -42,7 +47,7 @@ function le_znc_hook() {
     chkhost="$(find /etc/nginx/ssl/* -maxdepth 1 -type d | cut -f 5 -d '/')"
     if [[ -n ${chkhost} ]]; then
         defaulthost=$(grep -m1 "server_name" /etc/nginx/sites-enabled/default | awk '{print $2}' | sed 's/;//g')
-        if [[ ! $defaulthost == "_" ]]; then
+        if [[ ! $defaulthost == "_" ]] && le_cert_ready "${defaulthost}"; then
             if [[ -d /root/.acme.sh/${defaulthost}_ecc ]]; then
                 defaulthostDir="${defaulthost}_ecc"
             else
