@@ -126,7 +126,6 @@ function _clr() {
     packages=("${arg[@]:1}")
     for app in "${packages[@]}"; do
         if [[ -f /install/.$app.lock && ! -f /usr/local/bin/swizzin/remove/$app.sh ]]; then
-            # a dropped app (Homepage): its removal script is gone, nothing would be removed
             echo_warn "box can no longer remove $app: remove it by hand"
         elif [[ -f /install/.$app.lock ]]; then
             schedule_remove="true"
