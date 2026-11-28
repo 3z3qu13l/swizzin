@@ -59,14 +59,13 @@ function update_nginx() {
         echo_progress_done
     done
 
-    if [[ ! -d /srv/fancyindex ]] || [ ! -f /srv/fancyindex/sw.js ]; then
+    #shellcheck source=sources/functions/fancyindex
+    . /etc/swizzin/sources/functions/fancyindex
+    # the header loads the theme with its version in the URLs
+    if ! grep -qs "?v=${fancyindex_version}\"" /srv/fancyindex/flat-theme/header.html; then
         echo_progress_start "Updating fancyindex theme"
-
-        #shellcheck source=sources/functions/fancyindex
-        . /etc/swizzin/sources/functions/fancyindex
-        download_theme
-        cat_config
-
+        # the snippet keeps the former theme until the new one is in place
+        download_theme && cat_config
         echo_progress_done
     fi
 

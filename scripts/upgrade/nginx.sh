@@ -43,6 +43,9 @@ done
 
 #shellcheck source=sources/functions/fancyindex
 . /etc/swizzin/sources/functions/fancyindex
+# the snippet points to the theme: install it first if box update could not. The snippet is written
+# even without it (deleted above, the download locations include it)
+[[ -f /srv/fancyindex/flat-theme/header.html ]] || download_theme
 cat_config
 
 if [[ ! $hostname == "_" ]]; then

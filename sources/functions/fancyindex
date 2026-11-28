@@ -1,32 +1,49 @@
 #!/bin/bash
-# nginx fancyindex: the theme of the directory listings
+# nginx fancyindex: the theme of the directory listings (3z3qu13l/nginx-fancyindex-flat-theme), served as /fancyindex/flat-theme
 
+fancyindex_version=1.3.3
+fancyindex_sha256=a06268411e67c1dfe158b78efe534730750edab7c1d27e5a21cb671c00fe7326
+
+# download_theme: installs the pinned theme in /srv/fancyindex/flat-theme and deletes the former theme's files.
+# Returns 1, the installed theme untouched, when a step fails
 download_theme() {
-    theme_url="https://github.com/Naereen/Nginx-Fancyindex-Theme/archive/ee2e73c8dd1584b84ddad0cfcc44fbd903bdccd8.tar.gz"
+    local url="https://github.com/3z3qu13l/nginx-fancyindex-flat-theme/releases/download/${fancyindex_version}/nginx-fancyindex-flat-theme.tar.gz"
+    # on the same filesystem as the theme, so the final mv is a rename that cannot stop halfway
+    local tmp new=/srv/fancyindex/.flat-theme.new
     # mktemp: fixed /tmp paths would let another local user swap the theme files run as root
     tmp=$(mktemp -d)
-    wget -q "$theme_url" -O "$tmp/fancyindex.tar.gz" || {
+    if ! wget -q "$url" -O "$tmp/theme.tar.gz" || ! echo "${fancyindex_sha256}  $tmp/theme.tar.gz" | sha256sum -c --status; then
         echo_warn "Could not download the fancyindex theme"
         rm -rf "$tmp"
         return 1
-    }
-    mkdir -p /srv/fancyindex
-    tar -xzf "$tmp/fancyindex.tar.gz" -C "$tmp" --strip-components=1
-    mv "$tmp"/Nginx-Fancyindex/* /srv/fancyindex
+    fi
+    rm -rf "$new"
+    # the theme is built for /theme/
+    if ! mkdir -p "$new" ||
+        ! tar -xzf "$tmp/theme.tar.gz" -C "$new" --strip-components=1 --no-same-owner --no-same-permissions ||
+        ! sed -i 's#="/theme/#="/fancyindex/flat-theme/#g' "$new/header.html" ||
+        ! chmod -R u=rwX,go=rX "$new" ||
+        ! rm -rf /srv/fancyindex/flat-theme ||
+        ! mv "$new" /srv/fancyindex/flat-theme; then
+        echo_warn "Could not install the fancyindex theme"
+        rm -rf "$new" "$tmp"
+        return 1
+    fi
     rm -rf "$tmp"
-
-    # fix refs
-    sed -i 's/href="\/[^\/]*/href="\/fancyindex/g' /srv/fancyindex/header.html
-    sed -i 's/src="\/[^\/]*/src="\/fancyindex/g' /srv/fancyindex/footer.html
+    # the Naereen theme's files, from any of its installs; share.php, which ruTorrent links here, stays
+    rm -rf /srv/fancyindex/{addNginxFancyIndexForm.js,footer.html,header.html,jquery.min.js,purify.min.js,showdown.min.js,styles.css,sw.js,README.md,HEADER.md,Nginx-Fancyindex}
 }
 
+# cat_config: writes the fancyindex snippet the download locations include
 cat_config() {
     cat > /etc/nginx/snippets/fancyindex.conf << FIC
     fancyindex on;
     fancyindex_localtime on;
     fancyindex_exact_size off;
-    fancyindex_header "/fancyindex/header.html";
-    fancyindex_footer "/fancyindex/footer.html";
+    fancyindex_header "/fancyindex/flat-theme/header.html";
+    fancyindex_footer "/fancyindex/flat-theme/footer.html";
+    # the theme shows the path as breadcrumbs
+    fancyindex_show_path off;
     fancyindex_name_length 255; # Maximum file name length in bytes, change as you like.
 FIC
 }
