@@ -1,10 +1,10 @@
 #!/bin/bash
 # install_fpm: the fpm tool the builds use to package what they compile as .deb
 
+# fpm runs on the Ruby it was installed with. After a distribution upgrade that Ruby is an old one apt
+# autoremoves (remove_rtorrent does) in the middle of a build: fpm is reinstalled on the current Ruby first
 function install_fpm() {
-    fpm -h > /dev/null 2>&1
-    exit=$?
-    if [[ ! $exit == '0' ]]; then
+    if [[ $(head -n1 /usr/local/bin/fpm 2> /dev/null) != "#!$(readlink -f /usr/bin/ruby)" ]] || ! fpm -h > /dev/null 2>&1; then
         apt_install ruby ruby-dev libffi-dev
         echo_progress_start "Installing fpm through ruby/gem"
         case $(_os_codename) in
@@ -13,7 +13,10 @@ function install_fpm() {
                 ;;
             *) ;;
         esac
-        gem install fpm >> $log 2>&1
+        gem install fpm >> $log 2>&1 || {
+            echo_error "Could not install fpm, check $log"
+            exit 1
+        }
         echo_progress_done
     fi
 }
